@@ -182,5 +182,7 @@ function prettyPrint(val, indent='') {
         return '"' + val + '"'
     } else if (typeof val == 'number') {
         return '' + val
+    } else if (typeof val == 'boolean') {
+        return val ? 'true' : 'false'
     }
 }
