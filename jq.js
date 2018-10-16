@@ -23,7 +23,6 @@ function makeFilter(str) {
             nonSpace = i;
             break;
         }
-            
     if (str[nonSpace] == ']')
         return {
             filter: (x) => [x],
@@ -49,7 +48,7 @@ function makeFilter(str) {
             mode = 'single-quote'
             start = i
         } else if (!mode && c === ' ') {
-        } else if (mode != 'quote' && mode != 'single-quote' 
+        } else if (mode != 'quote' && mode != 'single-quote'
             && mode != 'square-index'
             && c == ' ') {
             // Found end
@@ -90,7 +89,7 @@ function makeFilter(str) {
         } else if (mode == 'dot' && isAlpha(c)) {
             mode = 'object-identifier-index'
         } else if (mode == 'dot' && c == '[') {
-            mode = 'square-index' 
+            mode = 'square-index'
         } else if (c == '.') {
             mode = 'dot';
         } else if (c == '[') {
