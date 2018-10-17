@@ -7,28 +7,29 @@ function isDigit(c) {
     return (c >= '0' && c <= '9')
 }
 
-function prettyPrint(val, indent='') {
+function prettyPrint(val, indent='', step='    ', LF='\n') {
+    let SP = step ? ' ' : ''
     if (val === null) {
         return 'null'
     } else if (val.constructor == Array) {
         let ret = '['
         let first = true
         for (let v of Object.values(val)) {
-            ret += (first ? '' : ',') + '\n' + indent + '    ' +
-                prettyPrint(v, indent + '    ')
+            ret += (first ? '' : ',') + LF + indent + step +
+                prettyPrint(v, indent + step, step, LF)
             first = false
         }
-        ret += '\n' + indent + ']'
+        ret += LF + indent + ']'
         return ret
     } else if (typeof val == 'object') {
         let ret = '{'
         let first = true
         for (let k of Object.keys(val)) {
-            ret += (first ? '' : ',') + '\n' + indent + '    ' +
-                '"' + k + '": ' + prettyPrint(val[k], indent + '    ')
+            ret += (first ? '' : ',') + LF + indent + step +
+                '"' + k + '":' +SP+ prettyPrint(val[k], indent + step, step, LF)
             first = false
         }
-        ret += '\n' + indent + '}'
+        ret += LF + indent + '}'
         return ret
     } else if (typeof val == 'string') {
         return '"' + val + '"'
