@@ -102,6 +102,9 @@ function tokenise(str, startAt=0) {
             ret.push({type: 'comma'})
         } else if (c == '|') {
             ret.push({type: 'pipe'})
+        // Infix operators
+        } else if (c == '+' || c == '*' || c == '-' || c == '/' || c == '%') {
+            ret.push({type: 'op', op: c})
         } else if (isAlpha(c)) {
             let tok = ''
             while (isAlpha(str[i]) || isDigit(str[i]))
@@ -191,6 +194,23 @@ function parse(tokens, startAt=0, until='none') {
             let rhs = r.node
             i = r.i
             ret = [new PipeNode(lhs, rhs)]
+        // Infix operators
+        } else if (t.type == 'op') {
+            let lhs = new FilterNode(ret)
+            let op = t.op
+            let stream = [lhs, t]
+            let r = parse(tokens, i + 1, ['op', 'comma', 'pipe', 'right-paren',
+                'right-brace', 'right-square'])
+            i = r.i
+            stream.push(r.node)
+            while (i < tokens.length && tokens[i].type == 'op') {
+                stream.push(tokens[i])
+                let r = parse(tokens, i + 1, ['op', 'comma', 'pipe',
+                    'right-paren', 'right-brace', 'right-square'])
+                i = r.i
+                stream.push(r.node)
+            }
+            ret = [shuntingYard(stream)]
         } else {
             throw 'could not handle token ' + t.type
         }
@@ -292,6 +312,53 @@ function parseObject(tokens, startAt=0) {
     }
 }
 
+function shuntingYard(stream) {
+    const prec = { '+' : 5, '-' : 5, '*' : 10, '/' : 10, '%' : 10 }
+    let output = []
+    let operators = []
+    for (let x of stream) {
+        if (x.type == 'op') {
+            while (operators.length && prec[operators[0].op] >= prec[x.op])
+                output.push(operators.shift())
+            operators.unshift(x)
+        } else {
+            output.push(x)
+        }
+    }
+    for (let o of operators)
+        output.push(o)
+    console.log(output)
+    let constructors = {
+        '+': AdditionOperator,
+        '*': MultiplicationOperator,
+        '-': SubtractionOperator,
+        '/': DivisionOperator,
+        '%': ModuloOperator
+    }
+    let stack = []
+    for (let o of output) {
+        if (o.type == 'op') {
+            let r = stack.pop()
+            let l = stack.pop()
+            stack.push(new constructors[o.op](l, r))
+        } else {
+            stack.push(o)
+        }
+    }
+    return stack[0]
+}
+
+// Convert a value to a consistent type name, addressing the issue
+// that arrays are objects.
+function nameType(o) {
+    if (o === null) return 'null'
+    if (typeof o == 'number') return 'number'
+    if (typeof o == 'string') return 'string'
+    if (typeof o == 'boolean') return 'boolean'
+    if (o.constructor == Array) return 'array'
+    if (typeof o == 'object') return 'object'
+}
+
 // Parse node classes follow. Parse nodes are:
 //   FilterNode, generic juxtaposition combination
 //   IndexNode, lhs[rhs]
@@ -308,6 +375,12 @@ function parseObject(tokens, startAt=0) {
 //   ArrayNode, [...]
 //   PipeNode, a | b | c
 //   ObjectNode { x : y, z, "a b" : 12, (.x.y) : .z }
+//   OperatorNode, a binary infix operator
+//   AdditionOperator, a + b
+//   MultiplicationOperator, a * b
+//   SubtractionOperator, a - b
+//   DivisionOperator, a / b
+//   ModuloOperator, a % b
 class ParseNode {}
 class FilterNode extends ParseNode {
     constructor(nodes) {
@@ -448,5 +521,108 @@ class ObjectNode extends ParseNode {
                     obj[k] = v
         }
         yield obj
+    }
+}
+class OperatorNode extends ParseNode {
+    constructor(l, r) {
+        super()
+        this.l = l
+        this.r = r
+    }
+    * apply(input) {
+        for (let rr of this.r.apply(input))
+            for (let ll of this.l.apply(input))
+                yield this.combine(ll, rr, nameType(ll), nameType(rr))
+    }
+}
+class AdditionOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        if (lt == 'number' && rt == 'number')
+            return l + r
+        if (l === null)
+            return r
+        if (r === null)
+            return l
+        if (lt == 'string' && rt == 'string')
+            return l + r
+        if (lt == 'array' && rt == 'array')
+            return l.concat(r)
+        if (lt == 'object' && rt == 'object')
+            return Object.assign(Object.assign({}, l), r)
+        throw 'type mismatch in +:' + lt + ' and ' + rt + ' cannot be added'
+    }
+}
+class MultiplicationOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        if (lt == 'number' && rt == 'number')
+            return l * r
+        if (lt == 'number' && rt == 'string')
+            return this.repeat(r, l)
+        if (lt == 'string' && rt == 'number')
+            return this.repeat(l, r)
+        if (lt == 'object' && rt == 'object')
+            return this.merge(Object.assign({}, l), r)
+        throw 'type mismatch in *:' + lt + ' and ' + rt + ' cannot be multiplied'
+    }
+    repeat(s, n) {
+        if (n == 0)
+            return null;
+        let r = []
+        for (let i = 0; i < n; i++)
+            r.push(s)
+        return r.join('')
+    }
+    merge(l, r) {
+        for (let k of Object.keys(r)) {
+            if (!l.hasOwnProperty(k))
+                l[k] = r[k]
+            else if (nameType(l[k]) != 'object' || nameType(r[k]) != 'object')
+                l[k] = r[k]
+            else
+                this.merge(l[k], r[k])
+        }
+        return l
+    }
+}
+class SubtractionOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        if (lt == 'number' && rt == 'number')
+            return l - r
+        if (l == null || r == null)
+            throw 'type mismatch in -'
+        if (lt == 'array' && rt == 'array')
+            return l.filter(x => r.indexOf(x) == -1)
+        throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be subtracted'
+    }
+}
+class DivisionOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        if (lt == 'number' && rt == 'number')
+            return l / r
+        if (lt == 'string' && rt == 'string')
+            return l.split(r)
+        throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided'
+    }
+}
+class ModuloOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        if (lt == 'number' && rt == 'number')
+            return l % r
+        throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided (remainder)'
     }
 }
