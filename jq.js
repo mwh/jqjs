@@ -196,6 +196,11 @@ function parse(tokens, startAt=0, until='none') {
             ret = [new PipeNode(lhs, rhs)]
         // Infix operators
         } else if (t.type == 'op') {
+            if (ret.length == 0 && t.op == '-' && tokens[i+1].type == 'number') {
+                tokens[i+1].value = -tokens[i+1].value
+                t = tokens[++i]
+                continue
+            }
             let lhs = new FilterNode(ret)
             let op = t.op
             let stream = [lhs, t]
@@ -408,8 +413,12 @@ class IndexNode extends ParseNode {
     }
     * apply(input) {
         for (let l of this.lhs.apply(input))
-            for (let i of this.index.apply(input))
-                yield l[i]
+            for (let i of this.index.apply(input)) {
+                if (typeof i == 'number' && i < 0 && nameType(l) == 'array')
+                    yield l[l.length + i]
+                else
+                    yield l[i]
+            }
     }
 }
 class GenericIndex extends ParseNode {
@@ -419,7 +428,10 @@ class GenericIndex extends ParseNode {
     }
     * apply(input) {
         for (let i of this.index.apply(input))
-            yield input[i]
+            if (typeof i == 'number' && i < 0 && nameType(input) == 'array')
+                yield input[input.length + i]
+            else
+                yield input[i]
     }
 }
 class IdentifierIndex extends GenericIndex {
