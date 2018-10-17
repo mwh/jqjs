@@ -32,12 +32,21 @@ function prettyPrint(val, indent='', step='    ', LF='\n') {
         ret += LF + indent + '}'
         return ret
     } else if (typeof val == 'string') {
-        return '"' + val + '"'
+        return '"' + escapeString(val) + '"'
     } else if (typeof val == 'number') {
         return '' + val
     } else if (typeof val == 'boolean') {
         return val ? 'true' : 'false'
     }
+}
+
+function escapeString(s) {
+    s = s.replace('\\', '\\\\')
+    s = s.replace('"', '\\"')
+    s = s.replace('\n', '\\n')
+    s = s.replace(/[\x00-\x1f]/,
+        x => '\\u00' + x.charCodeAt(0).toString(16).padStart(2, '0'))
+    return s
 }
 
 // Recursive-descent parser for JQ query language
