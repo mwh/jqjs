@@ -8,7 +8,9 @@ function isDigit(c) {
 }
 
 function prettyPrint(val, indent='') {
-    if (val.constructor == Array) {
+    if (val === null) {
+        return 'null'
+    } else if (val.constructor == Array) {
         let ret = '['
         let first = true
         for (let v of Object.values(val)) {
