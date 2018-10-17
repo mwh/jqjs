@@ -42,7 +42,7 @@ function prettyPrint(val, indent='') {
 // Split input program into tokens. Tokens are:
 // quote, number, identifier-index, dot-square, dot, left-square,
 // right-square, left-paren, right-paren, pipe, comma,
-// identifier, colon
+// identifier, colon, left-brace, right-brace
 function tokenise(str, startAt=0) {
     let ret = []
     function error(msg) {
@@ -92,6 +92,10 @@ function tokenise(str, startAt=0) {
             ret.push({type: 'left-paren'})
         } else if (c == ')') {
             ret.push({type: 'right-paren'})
+        } else if (c == '{') {
+            ret.push({type: 'left-brace'})
+        } else if (c == '}') {
+            ret.push({type: 'right-brace'})
         } else if (c == ',') {
             ret.push({type: 'comma'})
         } else if (c == '|') {
@@ -119,7 +123,8 @@ function parse(tokens, startAt=0, until='none') {
     let t = tokens[i]
     let ret = []
     let commaAccum = []
-    while (t && t.type != until) {
+    while (t && (until.indexOf(t.type) == -1)) {
+        console.log('looking at', t)
         // Simple cases
         if (t.type == 'identifier-index') {
             ret.push(new IdentifierIndex(t.value))
@@ -158,6 +163,11 @@ function parse(tokens, startAt=0, until='none') {
         } else if (t.type == 'left-paren') {
             // Find the body of the brackets first
             let r = parse(tokens, i + 1, 'right-paren')
+            ret.push(r.node)
+            i = r.i
+        // Object literal
+        } else if (t.type == 'left-brace') {
+            let r = parseObject(tokens, i + 1)
             ret.push(r.node)
             i = r.i
         // Comma consumes everything previous and splits in-place
@@ -205,6 +215,81 @@ function parseDotSquare(tokens, startAt=0) {
     return {node: new GenericIndex(r.node), i: r.i}
 }
 
+// Parse an object literal, expecting to start immediately inside the
+// left brace and to consume up to and including the right brace.
+function parseObject(tokens, startAt=0) {
+    let i = startAt
+    let fields = []
+    while (tokens[i].type != 'right-brace') {
+        if (tokens[i].type == 'identifier') {
+            // bare name x
+            let ident = tokens[i++]
+            if (tokens[i].type == 'colon') {
+                // with value x: val
+                let r = parse(tokens, i + 1, ['comma', 'right-brace'])
+                i = r.i
+                fields.push({
+                    key: new StringNode(ident.value),
+                    value: r.node,
+                })
+                i--
+            } else if (tokens[i].type == 'comma') {
+                // no value: equivalent to x : .x
+                fields.push({
+                    key: new StringNode(ident.value),
+                    value: new IdentifierIndex(ident.value),
+                })
+            } else if (tokens[i].type == 'right-brace') {
+                // ditto, last field: equivalent to x : .x
+                fields.push({
+                    key: new StringNode(ident.value),
+                    value: new IdentifierIndex(ident.value),
+                })
+                i--
+            }
+        } else if (tokens[i].type == 'quote') {
+            // quoted-string key: "x" : val
+            let ident = tokens[i++]
+            if (tokens[i].type == 'colon') {
+                let r = parse(tokens, i + 1, ['comma', 'right-brace'])
+                i = r.i
+                fields.push({
+                    key: new StringNode(ident.value),
+                    value: r.node,
+                })
+                i--
+            } else {
+                throw 'unexpected ' + tokens[i].type + ', expected colon'
+            }
+        } else if (tokens[i].type == 'left-paren') {
+            // computed key: (.x | .y) : val
+            let kr = parse(tokens, i + 1, 'right-paren')
+            i = kr.i + 1
+            if (tokens[i].type == 'colon') {
+                let r = parse(tokens, i + 1, ['comma', 'right-brace'])
+                i = r.i
+                fields.push({
+                    key: kr.node,
+                    value: r.node,
+                })
+                i--
+            } else {
+                throw 'unexpected ' + tokens[i].type + ', expected colon'
+            }
+        } else {
+            throw 'unexpected ' + tokens[i].type + ' in object'
+        }
+        i++
+        // Consume a comma after a field
+        if (tokens[i].type == 'comma')
+            i++
+    }
+    return {
+        node: new ObjectNode(fields),
+        i
+    }
+}
+
 // Parse node classes follow. Parse nodes are:
 //   FilterNode, generic juxtaposition combination
 //   IndexNode, lhs[rhs]
@@ -220,6 +305,7 @@ function parseDotSquare(tokens, startAt=0) {
 //   CommaNode, .x, .y, .z
 //   ArrayNode, [...]
 //   PipeNode, a | b | c
+//   ObjectNode { x : y, z, "a b" : 12, (.x.y) : .z }
 class ParseNode {}
 class FilterNode extends ParseNode {
     constructor(nodes) {
@@ -345,5 +431,20 @@ class PipeNode extends ParseNode {
         for (let v of this.lhs.apply(input))
             for (let q of this.rhs.apply(v))
                 yield q
+    }
+}
+class ObjectNode extends ParseNode {
+    constructor(fields) {
+        super()
+        this.fields = fields
+    }
+    * apply(input) {
+        let obj = {}
+        for (let {key, value} of this.fields) {
+            for (let k of key.apply(input))
+                for (let v of value.apply(input))
+                    obj[k] = v
+        }
+        yield obj
     }
 }
