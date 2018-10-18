@@ -139,7 +139,6 @@ function parse(tokens, startAt=0, until='none') {
     let ret = []
     let commaAccum = []
     while (t && (until.indexOf(t.type) == -1)) {
-        console.log('looking at', t)
         // Simple cases
         if (t.type == 'identifier-index') {
             ret.push(new IdentifierIndex(t.value))
@@ -164,7 +163,7 @@ function parse(tokens, startAt=0, until='none') {
             // Find the body of the brackets first
             let r = parse(tokens, i + 1, 'right-square')
             if (ret.length) {
-                let lhs = new FilterNode(ret)
+                let lhs = makeFilterNode(ret)
                 ret = []
                 if (r.node.length === 0)
                     ret.push(new SpecificValueIterator(lhs))
@@ -188,18 +187,18 @@ function parse(tokens, startAt=0, until='none') {
         // Comma consumes everything previous and splits in-place
         // (parsing carries on in this method)
         } else if (t.type == 'comma') {
-            commaAccum.push(new FilterNode(ret))
+            commaAccum.push(makeFilterNode(ret))
             ret = []
         // Pipe consumes everything previous *including* commas
         // and splits by recursing for the right-hand side.
         } else if (t.type == 'pipe') {
             if (commaAccum.length) {
                 // .x,.y | .[1] is the same as (.x,.y) | .[1]
-                commaAccum.push(new FilterNode(ret))
+                commaAccum.push(makeFilterNode(ret))
                 ret = [new CommaNode(commaAccum)]
                 commaAccum = []
             }
-            let lhs = new FilterNode(ret)
+            let lhs = makeFilterNode(ret)
             let r = parse(tokens, i + 1, until)
             let rhs = r.node
             i = r.i
@@ -211,7 +210,7 @@ function parse(tokens, startAt=0, until='none') {
                 t = tokens[++i]
                 continue
             }
-            let lhs = new FilterNode(ret)
+            let lhs = makeFilterNode(ret)
             let op = t.op
             let stream = [lhs, t]
             let r = parse(tokens, i + 1, ['op', 'comma', 'pipe', 'right-paren',
@@ -234,12 +233,16 @@ function parse(tokens, startAt=0, until='none') {
     // If a comma appeared this array is non-empty and contains all
     // previous branches.
     if (commaAccum.length) {
-        commaAccum.push(new FilterNode(ret))
+        commaAccum.push(makeFilterNode(ret))
         return {node: new CommaNode(commaAccum), i}
     }
+    return {node: makeFilterNode(ret), i}
+}
+
+function makeFilterNode(ret) {
     if (ret.length == 1)
-        return {node: ret[0], i}
-    return {node: new FilterNode(ret), i}
+        return ret[0]
+    return new FilterNode(ret)
 }
 
 function parseDotSquare(tokens, startAt=0) {
@@ -342,7 +345,6 @@ function shuntingYard(stream) {
     }
     for (let o of operators)
         output.push(o)
-    console.log(output)
     let constructors = {
         '+': AdditionOperator,
         '*': MultiplicationOperator,
