@@ -207,6 +207,8 @@ function parse(tokens, startAt=0, until='none') {
             let r = parse(tokens, i + 1, until)
             let rhs = r.node
             i = r.i
+            if (tokens[i] && until.indexOf(tokens[i].type) != -1)
+                i--
             ret = [new PipeNode(lhs, rhs)]
         // Infix operators
         } else if (t.type == 'op') {
@@ -563,8 +565,12 @@ class GenericValueIterator extends ParseNode {
         yield* input
     }
     * paths(input) {
-        for (let o of input)
-            yield [o]
+        if (nameType(input) == 'array')
+            for (let i = 0; i < input.length; i++)
+                yield [i]
+        else
+            for (let o of Object.keys(input))
+                yield [o]
     }
 }
 class CommaNode extends ParseNode {
@@ -600,6 +606,25 @@ class PipeNode extends ParseNode {
         for (let v of this.lhs.apply(input))
             for (let q of this.rhs.apply(v))
                 yield q
+    }
+    * paths(input) {
+        for (let [p, v] of this.zip(this.lhs.paths(input),
+                this.lhs.apply(input))) {
+            for (let p2 of this.rhs.paths(v)) {
+                yield p.concat(p2)
+            }
+        }
+    }
+    * zip(a, b) {
+        let aa = a[Symbol.iterator]()
+        let bb = b[Symbol.iterator]()
+        let v1 = aa.next()
+        let v2 = bb.next()
+        while (!v1.done && !v2.done) {
+            yield [v1.value, v2.value]
+            v1 = aa.next()
+            v2 = bb.next()
+        }
     }
 }
 class ObjectNode extends ParseNode {
