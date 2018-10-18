@@ -111,7 +111,12 @@ function tokenise(str, startAt=0) {
         } else if (c == ',') {
             ret.push({type: 'comma'})
         } else if (c == '|') {
-            ret.push({type: 'pipe'})
+            let d = str[i+1]
+            if (d == '=') {
+                ret.push({type: 'pipe-equals'})
+                i++
+            } else
+                ret.push({type: 'pipe'})
         // Infix operators
         } else if (c == '+' || c == '*' || c == '-' || c == '/' || c == '%') {
             ret.push({type: 'op', op: c})
@@ -225,6 +230,14 @@ function parse(tokens, startAt=0, until='none') {
                 stream.push(r.node)
             }
             ret = [shuntingYard(stream)]
+        // Update-assignment
+        } else if (t.type == 'pipe-equals') {
+            let lhs = makeFilterNode(ret)
+            let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
+                'right-brace', 'right-square'])
+            i = r.i
+            let rhs = r.node
+            ret = [new UpdateAssignment(lhs, rhs)]
         } else {
             throw 'could not handle token ' + t.type
         }
@@ -398,6 +411,7 @@ function nameType(o) {
 //   SubtractionOperator, a - b
 //   DivisionOperator, a / b
 //   ModuloOperator, a % b
+//   UpdateAssignment, .x.y |= .z
 class ParseNode {}
 class FilterNode extends ParseNode {
     constructor(nodes) {
@@ -411,7 +425,7 @@ class FilterNode extends ParseNode {
     }
     * apply(input) {
         if (!this.filter)
-            return yield input
+            return
         for (let v of this.source.apply(input)) {
             yield* this.filter.apply(v)
         }
@@ -515,12 +529,30 @@ class SpecificValueIterator extends ParseNode {
     }
     * apply(input) {
         for (let o of this.source.apply(input))
-            yield* o
+            yield* Object.values(o)
     }
     * paths(input) {
-        for (let p of this.source.paths(input))
-            for (let o of this.apply(input))
-                yield p.concat([o])
+        for (let [p, v] of this.zip(this.source.paths(input),
+                this.source.apply(input))) {
+                if (nameType(v) == 'array')
+                    for (let i = 0; i < v.length; i++)
+                        yield p.concat([i])
+                else
+                    for (let i of Object.keys(v)) {
+                        yield p.concat([i])
+                    }
+        }
+    }
+    * zip(a, b) {
+        let aa = a[Symbol.iterator]()
+        let bb = b[Symbol.iterator]()
+        let v1 = aa.next()
+        let v2 = bb.next()
+        while (!v1.done && !v2.done) {
+            yield [v1.value, v2.value]
+            v1 = aa.next()
+            v2 = bb.next()
+        }
     }
 }
 class GenericValueIterator extends ParseNode {
@@ -686,5 +718,42 @@ class ModuloOperator extends OperatorNode {
         if (lt == 'number' && rt == 'number')
             return l % r
         throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided (remainder)'
+    }
+}
+class UpdateAssignment extends ParseNode {
+    constructor(l, r) {
+        super()
+        this.l = l
+        this.r = r
+    }
+    * apply(input) {
+        input = JSON.parse(JSON.stringify(input))
+        for (let p of this.l.paths(input)) {
+            let it = this.r.apply(this.get(input, p)).next()
+            if (it.done)
+                input = this.update(input, p, null, true)
+            else
+                input = this.update(input, p, it.value)
+        }
+        yield input
+    }
+    // Pluck the value at a path out of an object
+    get(obj, p) {
+        let o = obj
+        for (let i of p)
+            o = o[i]
+        return o
+    }
+    // Set the value at path p to v in obj,
+    // or delete the key if del is true.
+    update(obj, p, v, del=false) {
+        let o = obj
+        let last = p.pop()
+        for (let i of p)
+            o = o[i]
+        o[last] = v
+        if (del)
+            delete o[last]
+        return obj
     }
 }
