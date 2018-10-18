@@ -406,7 +406,7 @@ class FilterNode extends ParseNode {
         let p = nodes.pop()
         if (p) {
             this.filter = p
-            this.source = new FilterNode(nodes)
+            this.source = nodes.length == 1 ? nodes[0] : new FilterNode(nodes)
         }
     }
     * apply(input) {
@@ -414,6 +414,16 @@ class FilterNode extends ParseNode {
             return yield input
         for (let v of this.source.apply(input)) {
             yield* this.filter.apply(v)
+        }
+    }
+    * paths(input) {
+        if (!this.filter) {
+            return []
+        }
+        for (let v of this.source.paths(input)) {
+            for (let w of this.filter.paths(input)) {
+                yield v.concat(w)
+            }
         }
     }
 }
@@ -432,6 +442,11 @@ class IndexNode extends ParseNode {
                     yield l[i]
             }
     }
+    * paths(input) {
+        for (let l of this.lhs.paths(input))
+            for (let a of this.index.apply(input))
+                yield l.concat([a])
+    }
 }
 class GenericIndex extends ParseNode {
     constructor(innerNode) {
@@ -444,6 +459,10 @@ class GenericIndex extends ParseNode {
                 yield input[input.length + i]
             else
                 yield input[i]
+    }
+    * paths(input) {
+        for (let a of this.index.apply(input))
+            yield [a]
     }
 }
 class IdentifierIndex extends GenericIndex {
@@ -458,6 +477,9 @@ class IdentityNode extends ParseNode {
     * apply(input) {
         yield input
     }
+    * paths(input) {
+        yield []
+    }
 }
 class ValueNode extends ParseNode {
     constructor(v) {
@@ -465,6 +487,9 @@ class ValueNode extends ParseNode {
         this.value = v
     }
     * apply() {
+        yield this.value
+    }
+    * paths(input) {
         yield this.value
     }
 }
@@ -492,6 +517,11 @@ class SpecificValueIterator extends ParseNode {
         for (let o of this.source.apply(input))
             yield* o
     }
+    * paths(input) {
+        for (let p of this.source.paths(input))
+            for (let o of this.apply(input))
+                yield p.concat([o])
+    }
 }
 class GenericValueIterator extends ParseNode {
     constructor() {
@@ -499,6 +529,10 @@ class GenericValueIterator extends ParseNode {
     }
     * apply(input) {
         yield* input
+    }
+    * paths(input) {
+        for (let o of input)
+            yield [o]
     }
 }
 class CommaNode extends ParseNode {
@@ -509,6 +543,10 @@ class CommaNode extends ParseNode {
     * apply(input) {
         for (let b of this.branches)
             yield* b.apply(input)
+    }
+    * paths(input) {
+        for (let b of this.branches)
+            yield* b.paths(input)
     }
 }
 class ArrayNode extends ParseNode {
