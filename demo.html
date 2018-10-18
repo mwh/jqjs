@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>jqjs demo page</title>
+        <style type="text/css">
+            html, body {
+                height: 100vh;
+                margin: 0;
+                padding: 0;
+            }
+            textarea {
+                flex: 1;
+            }
+            div {
+                display: flex;
+            }
+            textarea.error {
+                background: pink;
+            }
+            #credits-line {
+                display: block;
+                text-align: right;
+                padding: 0 1ex;
+            }
+        </style>
+    </head>
+    <body>
+        <div style="flex-direction: column; height: 100%">
+            <div>
+                <span>JQ Program:</span>
+                <input type="text" id="jq-program" style="flex:1" value="." />
+            </div>
+            <div id="error-line">
+                &nbsp;
+            </div>
+            <div style="flex: 1">
+                <div style="flex-direction: column; flex: 1">
+                    <label for="jq-input">Input JSON value</label>
+                    <textarea id="jq-input">{
+    "x": {"y": 8},
+    "posts": [
+        {
+            "comments": ["One comment"],
+            "title": "A post"
+        }, {
+            "comments": [],
+            "title": "Another post"
+        }
+    ]
+}</textarea>
+                </div>
+                <div style="flex-direction: column; flex: 1">
+                    <label for="jq-output">Output JSON values</label>
+                    <textarea id="jq-output"></textarea>
+                </div>
+            </div>
+            <div id="credits-line">
+                <a href="https://github.com/mwh/jqjs">jqjs</a> demo page
+            </div>
+        </div>
+        <script type="text/javascript" src="jq.js"></script>
+        <script type="text/javascript">
+            function refresh() {
+                let prog = document.getElementById('jq-program').value
+                if (prog === '') prog = '.'
+                let filter
+                try {
+                    filter = parse(tokenise(prog))
+                    document.getElementById('jq-program').
+                        classList.remove('error')
+                } catch (e) {
+                    document.getElementById('jq-program').
+                        classList.add('error')
+                    document.getElementById('error-line').textContent = e
+                    return
+                }
+                document.getElementById('error-line').innerHTML = '&nbsp;'
+                if (document.getElementById('jq-input').value === '')
+                    return;
+                let jsonOBJ
+                try {
+                    jsonOBJ = JSON.parse(
+                            document.getElementById('jq-input').value)
+                    document.getElementById('jq-input').
+                        classList.remove('error')
+                } catch {
+                    document.getElementById('jq-input').classList.add(
+                            'error')
+                    return
+                }
+                let op = document.getElementById('jq-output')
+                op.value = ''
+                for (let i of filter.node.apply(jsonOBJ)) {
+                    if (typeof i == 'undefined')
+                        op.value += 'undefined (runtime error)\n'
+                    else
+                        op.value += prettyPrint(i) + '\n'
+                }
+            }
+            document.getElementById('jq-program').addEventListener('input',
+                    function(e) {
+                        refresh()
+                    }
+            );
+            document.getElementById('jq-input').addEventListener('input',
+                    function(e) {
+                        refresh()
+                    }
+            );
+            refresh()
+        </script>
+    </body>
+</html>
