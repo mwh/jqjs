@@ -20,6 +20,11 @@
 * SOFTWARE.
 */
 
+function compile(prog) {
+    let filter = parse(tokenise(prog))
+    return input => filter.node.apply(input)
+}
+
 function isAlpha(c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
@@ -30,6 +35,8 @@ function isDigit(c) {
 
 function prettyPrint(val, indent='', step='    ', LF='\n') {
     let SP = step ? ' ' : ''
+    if (typeof val == 'undefined')
+        return val
     if (val === null) {
         return 'null'
     } else if (val.constructor == Array) {
@@ -803,3 +810,8 @@ class UpdateAssignment extends ParseNode {
         return obj
     }
 }
+
+const jq = {compile, prettyPrint}
+// Delete these two lines for a non-module version (CORS-safe)
+export { compile, prettyPrint }
+export default jq

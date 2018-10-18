@@ -23,6 +23,17 @@
                 text-align: right;
                 padding: 0 1ex;
             }
+            #corsError {
+                display: block;
+                position: absolute;
+                top: 20%;
+                left: 20%;
+                right: 20%;
+                bottom: 20%;
+                background: #eee;
+                border: 3px solid black;
+                overflow-y: auto;
+            }
         </style>
     </head>
     <body>
@@ -52,21 +63,30 @@
                 </div>
                 <div style="flex-direction: column; flex: 1">
                     <label for="jq-output">Output JSON values</label>
-                    <textarea id="jq-output"></textarea>
+                    <textarea id="jq-output" readonly></textarea>
                 </div>
             </div>
             <div id="credits-line">
                 <a href="https://github.com/mwh/jqjs">jqjs</a> demo page
             </div>
         </div>
-        <script type="text/javascript" src="jq.js"></script>
-        <script type="text/javascript">
+        <!-- Chrome does not allow anything requiring CORS validation
+             to work on a local file, which includes module imports.
+             The following module will consequently fail when this
+             page is loaded from file:// and a diagnostic message is
+             displayed with some suggestions to fix it (below). -->
+        <script type="module" onerror="document.getElementById('corsError').style.display = ''">
+            import jq from './jq.js'
+            console.log('hhhhh')
             function refresh() {
                 let prog = document.getElementById('jq-program').value
                 if (prog === '') prog = '.'
                 let filter
                 try {
-                    filter = parse(tokenise(prog))
+                    // This line compiles the jq program into a
+                    // JavaScript generator function that can be
+                    // iterated over below.
+                    filter = jq.compile(prog)
                     document.getElementById('jq-program').
                         classList.remove('error')
                 } catch (e) {
@@ -91,11 +111,16 @@
                 }
                 let op = document.getElementById('jq-output')
                 op.value = ''
-                for (let i of filter.node.apply(jsonOBJ)) {
+                // The function returned from compile (filter) is a
+                // generator that produces the zero or more outputs
+                // from the jq program for a given single input value,
+                // which must be of one of the JSON data model types:
+                // object, array, string, number, boolean, or null.
+                for (let i of filter(jsonOBJ)) {
                     if (typeof i == 'undefined')
                         op.value += 'undefined (runtime error)\n'
                     else
-                        op.value += prettyPrint(i) + '\n'
+                        op.value += jq.prettyPrint(i) + '\n'
                 }
             }
             document.getElementById('jq-program').addEventListener('input',
@@ -110,5 +135,37 @@
             );
             refresh()
         </script>
+        <div id="corsError" style="display: none;">
+            <h1>JavaScript Module & CORS error</h1>
+
+            <p>Because of the way your browser implements JavaScript
+            modules this demo page needs to be loaded from a web server
+            over HTTP to work. You could upload the files somewhere, or
+            perhaps use a local web server like <kbd>python3 -m
+            http.server</kbd> or <kbd>python -m SimpleHTTPServer</kbd> or
+            <kbd>ruby -run -e httpd .</kbd> or <a
+            href="https://www.npmjs.com/package/http-server">http-server
+            from npm</a>, or
+            <a href="https://github.com/mwh/osws"><kbd>osws -m -d .</kbd></a>
+            — or any of the others from
+            <a href="https://gist.github.com/willurd/5720255">this big
+            list of HTTP static server one-liners</a>.</p>
+
+            <p>You could also load this page in Firefox, which permits local files to see their neighbours, or start Chrome with the <kbd>--allow-file-access-from-files</kbd> command-line option.</p>
+            <p>
+            In practical use, if local-file access is important, you can
+            remove the last two lines from <kbd>jq.js</kbd> (the ones
+            starting <code>export</code>) and then use
+            </p>
+            <pre>&lt;script src="jq.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+let func = jq.compile(".x[].y")
+for (let x of func(obj)) {
+...
+&lt;/script&gt;</pre>
+            <p>
+            as usual.
+            </p>
+        </div>
     </body>
 </html>
