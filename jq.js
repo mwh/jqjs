@@ -20,138 +20,6 @@
 * SOFTWARE.
 */
 
-const formats = {
-    text(v) {
-        if (typeof v == 'string')
-            return v
-        return prettyPrint(v, '', '', '')
-    },
-    json(v) {
-        return prettyPrint(v, '', '', '')
-    },
-    html(v) {
-        if (typeof v != 'string')
-            v = prettyPrint(v, '', '', '')
-        return v.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(
-            /&/g, '&amp;').replace(/'/g, '&apos;').replace(/"/g, '&quot;')
-    },
-    uri(v) {
-        if (typeof v != 'string')
-            v = prettyPrint(v, '', '', '')
-        return escape(v)
-    },
-    csv(v) {
-        if (nameType(v) != 'array')
-            throw 'cannot csv-format ' + nameType(v) + ', only array'
-        return v.map(x => {
-            if (typeof x == 'string')
-                return '"' + x.replace(/"/g, '""') + '"'
-            else if (typeof x == 'number')
-                return '' + x
-            else if (x === null)
-                return ''
-            else
-                throw 'type ' + nameType(x) + ' not valid in a csv row'
-        }).join(',')
-    },
-    tsv(v) {
-        if (nameType(v) != 'array')
-            throw 'cannot tsv-format ' + nameType(v) + ', only array'
-        return v.map(x => {
-            if (typeof x == 'string')
-                return escapeString(x)
-            else if (typeof x == 'number')
-                return '' + x
-            else if (x === null)
-                return ''
-            else
-                throw 'type ' + nameType(x) + ' not valid in a tsv row'
-        }).join('\t')
-    },
-    base64(v) {
-        if (typeof v != 'string')
-            v = prettyPrint(v, '', '', '')
-        return btoa(v)
-    },
-    base64d(v) {
-        if (typeof v != 'string')
-            throw 'can only base64-decode strings'
-        return atob(v)
-    },
-    sh(v) {
-        let t = nameType(v)
-        if (t == 'string')
-            return "'" + t.replace(/'/g, "'\\''") + "'"
-        else if (t == 'number')
-            return '' + v
-        else if (t == 'boolean')
-            return '' + v
-        else if (v === null)
-            return 'null'
-        else if (t === 'array') {
-            return v.map(v => {
-                let t = nameType(v)
-                if (t == 'string')
-                    return "'" + v.replace(/'/g, "'\\''") + "'"
-                else if (t == 'number')
-                    return '' + v
-                else if (t == 'boolean')
-                    return '' + v
-                else if (v === null)
-                    return 'null'
-                else
-                    throw t + ' cannot be escaped for shell'
-            }).join(' ')
-        } else
-            throw t + ' cannot be escaped for shell'
-    },
-}
-
-const functions = {
-    'tostring/0': function*(input) {
-        yield formats.text(input)
-    },
-    'empty/0': function*(input) {
-    },
-    'path/1': function*(input, args) {
-        let f = args[0]
-        yield* f.paths(input)
-    },
-    'select/1': function*(input, args) {
-        let selector = args[0]
-        for (let b of selector.apply(input))
-            if (b)
-                yield input
-    },
-    'select/1-paths': function*(input, args) {
-        let selector = args[0]
-        for (let b of selector.apply(input))
-            if (b)
-                yield []
-    },
-    'length/0': function*(input) {
-        let t = nameType(input)
-        if (t == 'string' || t == 'array')
-            return yield t.length
-        if (t == 'null') return yield 0
-        if (t == 'object') return yield Object.keys(input).length
-        throw 'cannot compute length of ' + t
-    },
-    'keys/0': function*(input) {
-        yield* Object.keys(input).sort()
-    },
-    'has/1': function*(input, args) {
-        let f = args[0]
-        for (let k of f.apply(input))
-            yield input.hasOwnProperty(k)
-    },
-    'in/1': function*(input, args) {
-        let f = args[0]
-        for (let o of f.apply(input))
-            yield o.hasOwnProperty(input)
-    },
-}
-
 function compile(prog) {
     let filter = parse(tokenise(prog).tokens)
     return input => filter.node.apply(input)
@@ -966,7 +834,10 @@ class GenericValueIterator extends ParseNode {
         super()
     }
     * apply(input) {
-        yield* input
+        if (nameType(input) == 'array')
+            yield* input
+        else
+            yield* Object.values(input)
     }
     * paths(input) {
         if (nameType(input) == 'array')
@@ -1331,6 +1202,138 @@ class FormatNode extends ParseNode {
             return yield formats[this.name](input)
         yield* this.string.applyEscape(input, formats[this.name])
     }
+}
+
+const formats = {
+    text(v) {
+        if (typeof v == 'string')
+            return v
+        return prettyPrint(v, '', '', '')
+    },
+    json(v) {
+        return prettyPrint(v, '', '', '')
+    },
+    html(v) {
+        if (typeof v != 'string')
+            v = prettyPrint(v, '', '', '')
+        return v.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(
+            /&/g, '&amp;').replace(/'/g, '&apos;').replace(/"/g, '&quot;')
+    },
+    uri(v) {
+        if (typeof v != 'string')
+            v = prettyPrint(v, '', '', '')
+        return escape(v)
+    },
+    csv(v) {
+        if (nameType(v) != 'array')
+            throw 'cannot csv-format ' + nameType(v) + ', only array'
+        return v.map(x => {
+            if (typeof x == 'string')
+                return '"' + x.replace(/"/g, '""') + '"'
+            else if (typeof x == 'number')
+                return '' + x
+            else if (x === null)
+                return ''
+            else
+                throw 'type ' + nameType(x) + ' not valid in a csv row'
+        }).join(',')
+    },
+    tsv(v) {
+        if (nameType(v) != 'array')
+            throw 'cannot tsv-format ' + nameType(v) + ', only array'
+        return v.map(x => {
+            if (typeof x == 'string')
+                return escapeString(x)
+            else if (typeof x == 'number')
+                return '' + x
+            else if (x === null)
+                return ''
+            else
+                throw 'type ' + nameType(x) + ' not valid in a tsv row'
+        }).join('\t')
+    },
+    base64(v) {
+        if (typeof v != 'string')
+            v = prettyPrint(v, '', '', '')
+        return btoa(v)
+    },
+    base64d(v) {
+        if (typeof v != 'string')
+            throw 'can only base64-decode strings'
+        return atob(v)
+    },
+    sh(v) {
+        let t = nameType(v)
+        if (t == 'string')
+            return "'" + t.replace(/'/g, "'\\''") + "'"
+        else if (t == 'number')
+            return '' + v
+        else if (t == 'boolean')
+            return '' + v
+        else if (v === null)
+            return 'null'
+        else if (t === 'array') {
+            return v.map(v => {
+                let t = nameType(v)
+                if (t == 'string')
+                    return "'" + v.replace(/'/g, "'\\''") + "'"
+                else if (t == 'number')
+                    return '' + v
+                else if (t == 'boolean')
+                    return '' + v
+                else if (v === null)
+                    return 'null'
+                else
+                    throw t + ' cannot be escaped for shell'
+            }).join(' ')
+        } else
+            throw t + ' cannot be escaped for shell'
+    },
+}
+
+const functions = {
+    'tostring/0': function*(input) {
+        yield formats.text(input)
+    },
+    'empty/0': function*(input) {
+    },
+    'path/1': function*(input, args) {
+        let f = args[0]
+        yield* f.paths(input)
+    },
+    'select/1': function*(input, args) {
+        let selector = args[0]
+        for (let b of selector.apply(input))
+            if (b)
+                yield input
+    },
+    'select/1-paths': function*(input, args) {
+        let selector = args[0]
+        for (let b of selector.apply(input))
+            if (b)
+                yield []
+    },
+    'length/0': function*(input) {
+        let t = nameType(input)
+        if (t == 'string' || t == 'array')
+            return yield t.length
+        if (t == 'null') return yield 0
+        if (t == 'object') return yield Object.keys(input).length
+        throw 'cannot compute length of ' + t
+    },
+    'keys/0': function*(input) {
+        yield* Object.keys(input).sort()
+    },
+    'has/1': function*(input, args) {
+        let f = args[0]
+        for (let k of f.apply(input))
+            yield input.hasOwnProperty(k)
+    },
+    'in/1': function*(input, args) {
+        let f = args[0]
+        for (let o of f.apply(input))
+            yield o.hasOwnProperty(input)
+    },
 }
 
 const jq = {compile, prettyPrint}
