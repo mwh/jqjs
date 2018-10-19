@@ -36,7 +36,7 @@ support.
   including the overloaded type operations.
 - [x] Named functions
     - [ ] Built-in functions
-        - [x] tostring function: `.x | tostring`
+        - [x] tostring, empty
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions
@@ -44,7 +44,9 @@ support.
 - [x] Format strings and escaping: `@text`, `@json`, `@html`, `@uri`, `@csv`,
   `@tsv`, `@sh`, `@base64`, `@base64d`
     - [x] Format interpolations: `@uri "https://google.com/search?q=\(.x)"`
-- [ ] Comparisons: `==`, `!=`, `<`, `>`, `<=`, `>=`
+- [x] Equality checks: `==`, `!=`
+- [x] Comparisons: `<`, `>`, `<=`, `>=`
+    - [ ] Correct sorting order for unequal types (`null < 7`, `[] < {}`)
 - [ ] Conditionals: `if A then B else C`
 - [x] Alternative operator: `//`
 - [ ] Try-catch: `try EXP catch EXP`

@@ -291,13 +291,17 @@ function tokenise(str, startAt=0, parenDepth) {
             } else
                 ret.push({type: 'pipe'})
         // Infix operators
-        } else if (c == '+' || c == '*' || c == '-' || c == '/' || c == '%') {
+        } else if (c == '+' || c == '*' || c == '-' || c == '/' || c == '%'
+                || c == '<' || c == '>') {
             if (c == '/' && str[i+1] == '/') {
                 c = '//'
                 i++
             }
             if (str[i+1] == '=') {
-                ret.push({type: 'op-equals', op: c})
+                if (c == '<' || c == '>')
+                    ret.push({type: 'op', op: c + '='})
+                else
+                    ret.push({type: 'op-equals', op: c})
                 i++
             } else
                 ret.push({type: 'op', op: c})
@@ -624,7 +628,7 @@ function parseObject(tokens, startAt=0) {
 
 function shuntingYard(stream) {
     const prec = { '+' : 5, '-' : 5, '*' : 10, '/' : 10, '%' : 10,
-        '//' : 2, '==': 3, '!=': 3 }
+        '//' : 2, '==': 3, '!=': 3, '>': 3, '<': 3, '>=': 3, '<=': 3 }
     let output = []
     let operators = []
     for (let x of stream) {
@@ -647,6 +651,10 @@ function shuntingYard(stream) {
         '//': AlternativeOperator,
         '==': EqualsOperator,
         '!=': NotEqualsOperator,
+        '<': LessThanOperator,
+        '>': GreaterThanOperator,
+        '<=': LessEqualsOperator,
+        '>=': GreaterEqualsOperator,
     }
     let stack = []
     for (let o of output) {
@@ -1126,6 +1134,38 @@ class ModuloOperator extends OperatorNode {
         if (lt == 'number' && rt == 'number')
             return l % r
         throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided (remainder)'
+    }
+}
+class LessThanOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        return l < r
+    }
+}
+class GreaterThanOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        return l > r
+    }
+}
+class LessEqualsOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        return l <= r
+    }
+}
+class GreaterEqualsOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        return l >= r
     }
 }
 class EqualsOperator extends OperatorNode {
