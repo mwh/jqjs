@@ -301,6 +301,16 @@ function tokenise(str, startAt=0, parenDepth) {
                 i++
             } else
                 ret.push({type: 'op', op: c})
+        } else if (c == '=') {
+            if (str[i + 1] != '=')
+                throw 'plain assignment = is not supported'
+            i++
+            ret.push({type: 'op', op: '=='})
+        } else if (c == '!') {
+            if (str[i + 1] != '=')
+                throw 'unexpected !'
+            i++
+            ret.push({type: 'op', op: '!='})
         } else if (isAlpha(c)) {
             let tok = ''
             while (isAlpha(str[i]) || isDigit(str[i]))
@@ -614,7 +624,7 @@ function parseObject(tokens, startAt=0) {
 
 function shuntingYard(stream) {
     const prec = { '+' : 5, '-' : 5, '*' : 10, '/' : 10, '%' : 10,
-        '//' : 3 }
+        '//' : 2, '==': 3, '!=': 3 }
     let output = []
     let operators = []
     for (let x of stream) {
@@ -634,7 +644,9 @@ function shuntingYard(stream) {
         '-': SubtractionOperator,
         '/': DivisionOperator,
         '%': ModuloOperator,
-        '//': AlternativeOperator
+        '//': AlternativeOperator,
+        '==': EqualsOperator,
+        '!=': NotEqualsOperator,
     }
     let stack = []
     for (let o of output) {
@@ -685,6 +697,8 @@ function nameType(o) {
 //   SubtractionOperator, a - b
 //   DivisionOperator, a / b
 //   ModuloOperator, a % b
+//   EqualsOperator, a == b
+//   NotEqualsOperator, a != b
 //   AlternativeOperator, a // b
 //   UpdateAssignment, .x.y |= .z
 //   FunctionCall, fname(arg1, arg2)
@@ -1112,6 +1126,44 @@ class ModuloOperator extends OperatorNode {
         if (lt == 'number' && rt == 'number')
             return l % r
         throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided (remainder)'
+    }
+}
+class EqualsOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        if (lt != rt)
+            return false
+        if (lt == 'number' || lt == 'string' || lt == 'boolean' || lt == 'null')
+            return l == r
+        if (lt == 'array') {
+            if (l.length != r.length)
+                return false
+            for (let i = 0; i < l.length; i++)
+                if (!this.combine(l[i], r[i], nameType(l[i]), nameType(r[i])))
+                    return false
+            return true
+        }
+        let lk = Object.keys(l)
+        let rk = Object.keys(r)
+        if (lk.length != rk.length)
+            return false
+        for (let k of lk) {
+            if (!r.hasOwnProperty(k))
+                return false
+            if (!this.combine(l[k], r[k], nameType(l[k]), nameType(r[k])))
+                return false
+        }
+        return true
+    }
+}
+class NotEqualsOperator extends EqualsOperator {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        return !super.combine(l, r, lt, rt)
     }
 }
 class AlternativeOperator extends ParseNode {
