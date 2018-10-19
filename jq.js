@@ -129,6 +129,27 @@ const functions = {
             if (b)
                 yield []
     },
+    'length/0': function*(input) {
+        let t = nameType(input)
+        if (t == 'string' || t == 'array')
+            return yield t.length
+        if (t == 'null') return yield 0
+        if (t == 'object') return yield Object.keys(input).length
+        throw 'cannot compute length of ' + t
+    },
+    'keys/0': function*(input) {
+        yield* Object.keys(input).sort()
+    },
+    'has/1': function*(input, args) {
+        let f = args[0]
+        for (let k of f.apply(input))
+            yield input.hasOwnProperty(k)
+    },
+    'in/1': function*(input, args) {
+        let f = args[0]
+        for (let o of f.apply(input))
+            yield o.hasOwnProperty(input)
+    },
 }
 
 function compile(prog) {
