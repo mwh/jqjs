@@ -23,7 +23,7 @@ support.
 - [x] Object Identifier-Index: `.foo`, `.foo.bar`
 - [x] Generic Object Index: `.[<string>]`
 - [x] Array Index: `.[2]`
-- [ ] Array/String Slice: `.[10:15]`
+- [x] Array/String Slice: `.[10:15]`
 - [x] Array/Object Value Iterator: `.[]`
 - [x] Comma: `,`
 - [x] Pipe: `|`

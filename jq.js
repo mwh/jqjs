@@ -194,11 +194,20 @@ function parse(tokens, startAt=0, until='none') {
             i = r.i
         } else if (t.type == 'left-square') {
             // Find the body of the brackets first
-            let r = parse(tokens, i + 1, 'right-square')
+            let r = parse(tokens, i + 1, ['right-square', 'colon'])
             if (ret.length) {
                 let lhs = makeFilterNode(ret)
                 ret = []
-                if (r.node.length === 0)
+                if (tokens[r.i].type == 'colon') {
+                    // Slice
+                    if (r.node.length === 0)
+                        r.node = new NumberNode(0)
+                    let e = parse(tokens, r.i + 1, ['right-square'])
+                    if (e.node.length === 0)
+                        e.node = new NumberNode(-1)
+                    ret.push(new SliceNode(lhs, r.node, e.node))
+                    r = e
+                } else if (r.node.length === 0)
                     ret.push(new SpecificValueIterator(lhs))
                 else
                     ret.push(new IndexNode(lhs, r.node))
@@ -294,7 +303,17 @@ function parseDotSquare(tokens, startAt=0) {
     i++
     if (tokens[i].type == 'right-square')
         return {node: new GenericValueIterator(), i}
-    let r = parse(tokens, i, 'right-square')
+    let r = parse(tokens, i, ['right-square', 'colon'])
+    if (tokens[r.i].type == 'colon') {
+        // Slice
+        let fr = r
+        if (fr.length === 0)
+            fr.node = new NumberNode(0)
+        r = parse(tokens, r.i + 1, ['right-square'])
+        if (r.length === 0)
+            r.node = new NumberNode(-1)
+        return {node: new GenericSlice(fr.node, r.node), i: r.i}
+    }
     return {node: new GenericIndex(r.node), i: r.i}
 }
 
@@ -422,8 +441,10 @@ function nameType(o) {
 // Parse node classes follow. Parse nodes are:
 //   FilterNode, generic juxtaposition combination
 //   IndexNode, lhs[rhs]
+//   SliceNode, lhs[from:to]
 //   GenericIndex, .[index]
 //   IdentifierIndex .index (delegates to GenericIndex("index"))
+//   GenericSlice, .[from:to]
 //   IdentityNode, .
 //   ValueNode, parent of string/number/boolean
 //   StringNode, "abc"
@@ -492,6 +513,30 @@ class IndexNode extends ParseNode {
                 yield l.concat([a])
     }
 }
+class SliceNode extends ParseNode {
+    constructor(lhs, from, to) {
+        super()
+        this.lhs = lhs
+        this.from = from
+        this.to = to
+    }
+    * apply(input) {
+        for (let l of this.lhs.apply(input))
+            for (let s of this.from.apply(input)) {
+                if (s < 0) s += l.length
+                for (let e of this.to.apply(input)) {
+                    if (e < 0) e += l.length
+                    yield l.slice(s, e)
+                }
+            }
+    }
+    * paths(input) {
+        for (let l of this.lhs.paths(input))
+            for (let a of this.from.apply(input))
+                for (let b of this.to.apply(input))
+                    yield l.concat([{start:a, end:b}])
+    }
+}
 class GenericIndex extends ParseNode {
     constructor(innerNode) {
         super()
@@ -512,6 +557,28 @@ class GenericIndex extends ParseNode {
 class IdentifierIndex extends GenericIndex {
     constructor(v) {
         super(new StringNode(v))
+    }
+}
+class GenericSlice extends ParseNode {
+    constructor(fr, to) {
+        super()
+        this.from = fr
+        this.to = to
+    }
+    * apply(input) {
+        for (let l of this.from.apply(input)) {
+            if (l < 0) l += input.length
+            for (let r of this.to.apply(input)) {
+                if (r < 0)
+                    r += input.length
+                yield input.slice(l, r)
+            }
+        }
+    }
+    * paths(input) {
+        for (let l of this.from.apply(input))
+            for (let r of this.to.apply(input))
+                yield [{start: l, end: r}]
     }
 }
 class IdentityNode extends ParseNode {
