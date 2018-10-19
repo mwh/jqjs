@@ -117,6 +117,18 @@ const functions = {
         let f = args[0]
         yield* f.paths(input)
     },
+    'select/1': function*(input, args) {
+        let selector = args[0]
+        for (let b of selector.apply(input))
+            if (b)
+                yield input
+    },
+    'select/1-paths': function*(input, args) {
+        let selector = args[0]
+        for (let b of selector.apply(input))
+            if (b)
+                yield []
+    },
 }
 
 function compile(prog) {
@@ -1274,6 +1286,12 @@ class FunctionCall extends ParseNode {
         if (!func)
             throw 'no such function ' + this.name
         let argStack = []
+        return func(input, this.args)
+    }
+    paths(input) {
+        let func = functions[this.name + '-paths']
+        if (!func)
+            throw 'no paths for ' + this.name
         return func(input, this.args)
     }
 }
