@@ -77,7 +77,6 @@
              displayed with some suggestions to fix it (below). -->
         <script type="module" onerror="document.getElementById('corsError').style.display = ''">
             import jq from './jq.js'
-            console.log('hhhhh')
             function refresh() {
                 let prog = document.getElementById('jq-program').value
                 if (prog === '') prog = '.'
@@ -111,16 +110,21 @@
                 }
                 let op = document.getElementById('jq-output')
                 op.value = ''
-                // The function returned from compile (filter) is a
-                // generator that produces the zero or more outputs
-                // from the jq program for a given single input value,
-                // which must be of one of the JSON data model types:
-                // object, array, string, number, boolean, or null.
-                for (let i of filter(jsonOBJ)) {
-                    if (typeof i == 'undefined')
-                        op.value += 'undefined (runtime error)\n'
-                    else
-                        op.value += jq.prettyPrint(i) + '\n'
+                try {
+                    // The function returned from compile (filter) is a
+                    // generator that produces the zero or more outputs
+                    // from the jq program for a given single input value,
+                    // which must be of one of the JSON data model types:
+                    // object, array, string, number, boolean, or null.
+                    for (let i of filter(jsonOBJ)) {
+                        if (typeof i == 'undefined')
+                            op.value += 'undefined (runtime error)\n'
+                        else
+                            op.value += jq.prettyPrint(i) + '\n'
+                    }
+                    document.getElementById('error-line').innerHTML = '&nbsp;'
+                } catch (e) {
+                    document.getElementById('error-line').textContent = e
                 }
             }
             document.getElementById('jq-program').addEventListener('input',
