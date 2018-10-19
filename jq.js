@@ -297,6 +297,8 @@ function tokenise(str, startAt=0, parenDepth) {
             ret.push({type: 'right-brace'})
         } else if (c == ',') {
             ret.push({type: 'comma'})
+        } else if (c == ';') {
+            ret.push({type: 'semicolon'})
         } else if (c == '@') {
             ret.push({type: 'at'})
         } else if (c == '|') {
@@ -366,10 +368,11 @@ function parse(tokens, startAt=0, until='none') {
             ret.push(new IdentityNode())
         } else if (t.type == 'dot-dot') {
             ret.push(new RecursiveDescent())
-        // Identifiers are only booleans for now
         } else if (t.type == 'identifier') {
             if (t.value == 'true' || t.value == 'false')
                 ret.push(new BooleanNode(t.value == 'true'))
+            else if (t.value == 'null')
+                ret.push(new BooleanNode(null))
             else {
                 // Named function
                 let fname = t.value
@@ -377,7 +380,8 @@ function parse(tokens, startAt=0, until='none') {
                 if (tokens[i+1] && tokens[i+1].type == 'left-paren') {
                     i++
                     while (tokens[i].type != 'right-paren') {
-                        let arg = parse(tokens, i + 1, ['comma', 'right-paren'])
+                        let arg = parse(tokens, i + 1,
+                            ['semicolon', 'right-paren'])
                         args.push(arg.node)
                         i = arg.i
                     }
