@@ -95,12 +95,40 @@ function tokenise(str, startAt=0) {
         if (c == '"' || c == "'") {
             let st = c
             let tok = ""
+            let escaped = false
+            let uniEsc
+            let cu = 0
             for (i++; i < str.length; i++) {
-                if (str[i] == st) {
+                if (uniEsc) {
+                    uniEsc--
+                    cu *= 16
+                    cu += Number.parseInt(str[i], 16)
+                    if (uniEsc == 0) {
+                        tok += String.fromCharCode(cu)
+                        cu = 0
+                    }
+                } else if (escaped) {
+                    let q = str[i]
+                    if (q == '"' || q == "'") tok += q
+                    else if (q == 'n') tok += '\n'
+                    else if (q == 't') tok += '\t'
+                    else if (q == 'r') tok += '\r'
+                    else if (q == 'b') tok += '\b'
+                    else if (q == 'f') tok += '\f'
+                    else if (q == '/') tok += '/'
+                    else if (q == '\\')tok += '\\'
+                    else if (q == 'u') uniEsc = 4
+                    else throw "invalid escape " + q
+                    escaped = false
+                } else if (str[i] == '\\') {
+                    escaped = true
+                } else if (str[i] == st) {
                     ret.push({type: 'quote', value: tok})
                     continue toplevel
+                } else {
+                    escaped = false
+                    tok += str[i]
                 }
-                tok += str[i]
             }
             error("unterminated string literal")
         } else if (isDigit(c)) {
