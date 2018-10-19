@@ -65,6 +65,13 @@ program may reëvaluate parts of it or traverse the object multiple times
 where that makes things simpler, and internally evaluation happens by
 tree-walking the input syntax.
 
+Demonstration
+-------------
+
+[demo.html] is a [live demo](https://mwh.github.io/jqjs/demo.html) of how
+to use jqjs that lets you enter a jq program and an input JSON value and
+see the output JSON values it produces.
+
 
 [jq]: https://stedolan.github.io/jq/
-
+[demo.html]: demo.html
