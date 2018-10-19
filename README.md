@@ -36,6 +36,7 @@ support.
   including the overloaded type operations.
 - [ ] Named functions
     - [ ] Built-in functions
+        - [x] tostring function: `.x | tostring`
     - [ ] User-defined functions
     - [ ] Mathematical functions
 - [ ] String interpolation: `\(foo)`

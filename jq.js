@@ -20,6 +20,14 @@
 * SOFTWARE.
 */
 
+const functions = {
+    'tostring/0': function*(input) {
+        if (typeof input == 'string')
+            yield input
+        yield prettyPrint(input, '', '', '')
+    }
+}
+
 function compile(prog) {
     let filter = parse(tokenise(prog).tokens)
     return input => filter.node.apply(input)
@@ -235,8 +243,20 @@ function parse(tokens, startAt=0, until='none') {
         } else if (t.type == 'identifier') {
             if (t.value == 'true' || t.value == 'false')
                 ret.push(new BooleanNode(t.value == 'true'))
-            else
-                throw 'functions not currently supported'
+            else {
+                // Named function
+                let fname = t.value
+                let args = []
+                if (tokens[i+1] && tokens[i+1].type == 'left-paren') {
+                    i++
+                    while (tokens[i].type != 'right-paren') {
+                        let arg = parse(tokens, i + 1, ['comma', 'right-paren'])
+                        args.push(arg.node)
+                        i = arg.i
+                    }
+                }
+                ret.push(new FunctionCall(fname + '/' + args.length, args))
+            }
         // Recursive square bracket cases
         } else if (t.type == 'dot-square') {
             let r = parseDotSquare(tokens, i)
@@ -533,6 +553,7 @@ function nameType(o) {
 //   DivisionOperator, a / b
 //   ModuloOperator, a % b
 //   UpdateAssignment, .x.y |= .z
+//   FunctionCall, fname(arg1, arg2)
 class ParseNode {}
 class FilterNode extends ParseNode {
     constructor(nodes) {
@@ -973,6 +994,20 @@ class UpdateAssignment extends ParseNode {
         if (del)
             delete o[last]
         return obj
+    }
+}
+class FunctionCall extends ParseNode {
+    constructor(fname, args) {
+        super()
+        this.name = fname
+        this.args = args
+    }
+    apply(input) {
+        let func = functions[this.name]
+        if (!func)
+            throw 'no such function ' + this.name
+        let argStack = []
+        return func(input, this.args)
     }
 }
 
