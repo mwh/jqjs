@@ -200,6 +200,8 @@ function tokenise(str, startAt=0, parenDepth) {
             ret.push({type: 'right-brace'})
         } else if (c == ',') {
             ret.push({type: 'comma'})
+        } else if (c == '@') {
+            ret.push({type: 'at'})
         } else if (c == '|') {
             let d = str[i+1]
             if (d == '=') {
@@ -302,6 +304,20 @@ function parse(tokens, startAt=0, until='none') {
             let r = parseObject(tokens, i + 1)
             ret.push(r.node)
             i = r.i
+        // Format @x
+        } else if (t.type == 'at') {
+            let n = tokens[++i]
+            if (!n || n.type != 'identifier')
+                throw 'expected identifier after @'
+            let fmt = n.value
+            if (!formats[fmt])
+                throw 'not a valid format: ' + fmt
+            let q
+            if (tokens[i+1] && tokens[i+1].type == 'quote-interp') {
+                ({q, i} = parseStringInterpolation(tokens, i + 1))
+                i = i
+            }
+            ret.push(new FormatNode(fmt, q))
         // Comma consumes everything previous and splits in-place
         // (parsing carries on in this method)
         } else if (t.type == 'comma') {
@@ -356,22 +372,9 @@ function parse(tokens, startAt=0, until='none') {
             ret = [new UpdateAssignment(lhs, rhs)]
         // Interpolated string literal
         } else if (t.type == 'quote-interp') {
-            let strings = []
-            let interps = []
-            strings.push(t.value)
-            // Always followed by a paren expression afterwards
-            let inner = parse(tokens, i + 1, ['right-paren'])
-            i = inner.i + 1
-            interps.push(inner.node)
-            while (tokens[i].type == 'quote-interp') {
-                strings.push(tokens[i].value)
-                inner = parse(tokens, i + 1, ['right-paren'])
-                i = inner.i + 1
-                interps.push(inner.node)
-            }
-            // Must be the ending quote now
-            strings.push(tokens[i].value)
-            ret.push(new StringLiteral(strings, interps))
+            let q
+            ({q, i} = parseStringInterpolation(tokens, i))
+            ret.push(q)
         } else {
             throw 'could not handle token ' + t.type
         }
@@ -390,6 +393,29 @@ function makeFilterNode(ret) {
     if (ret.length == 1)
         return ret[0]
     return new FilterNode(ret)
+}
+
+// Consumes pairs (quote-interp, expression up to rparen)* followed by
+// a bare string and returns a StringLiteral node with the interleaving
+// lists.
+function parseStringInterpolation(tokens, i) {
+    let t = tokens[i]
+    let strings = []
+    let interps = []
+    strings.push(t.value)
+    // Always followed by a paren expression afterwards
+    let inner = parse(tokens, i + 1, ['right-paren'])
+    i = inner.i + 1
+    interps.push(inner.node)
+    while (tokens[i].type == 'quote-interp') {
+        strings.push(tokens[i].value)
+        inner = parse(tokens, i + 1, ['right-paren'])
+        i = inner.i + 1
+        interps.push(inner.node)
+    }
+    // Must be the ending quote now
+    strings.push(tokens[i].value)
+    return {q:new StringLiteral(strings, interps), i}
 }
 
 function parseDotSquare(tokens, startAt=0) {
@@ -1034,6 +1060,18 @@ class FunctionCall extends ParseNode {
             throw 'no such function ' + this.name
         let argStack = []
         return func(input, this.args)
+    }
+}
+class FormatNode extends ParseNode {
+    constructor(fname, quote) {
+        super()
+        this.name = fname
+        this.string = quote
+    }
+    * apply(input) {
+        if (!this.string)
+            return yield formats[this.name](input)
+        yield* this.string.applyEscape(input, formats[this.name])
     }
 }
 
