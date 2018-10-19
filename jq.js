@@ -20,11 +20,17 @@
 * SOFTWARE.
 */
 
+const formats = {
+    text(v) {
+        if (typeof v == 'string')
+            return v
+        return prettyPrint(v, '', '', '')
+    }
+}
+
 const functions = {
     'tostring/0': function*(input) {
-        if (typeof input == 'string')
-            return yield input
-        yield prettyPrint(input, '', '', '')
+        yield formats.text(input)
     }
 }
 
@@ -350,25 +356,22 @@ function parse(tokens, startAt=0, until='none') {
             ret = [new UpdateAssignment(lhs, rhs)]
         // Interpolated string literal
         } else if (t.type == 'quote-interp') {
+            let strings = []
+            let interps = []
+            strings.push(t.value)
             // Always followed by a paren expression afterwards
-            let s = new StringNode(t.value)
             let inner = parse(tokens, i + 1, ['right-paren'])
-            i = inner.i
-            // For the sake of non-string values, add (... | tostring)
-            let adds = new AdditionOperator(s, new PipeNode(inner.node,
-                new FunctionCall('tostring/0', [])))
-            i++
+            i = inner.i + 1
+            interps.push(inner.node)
             while (tokens[i].type == 'quote-interp') {
-                s = new StringNode(tokens[i].value)
+                strings.push(tokens[i].value)
                 inner = parse(tokens, i + 1, ['right-paren'])
                 i = inner.i + 1
-                adds = new AdditionOperator(adds, s)
-                adds = new AdditionOperator(adds, new PipeNode(inner.node,
-                    new FunctionCall('tostring/0', [])))
+                interps.push(inner.node)
             }
             // Must be the ending quote now
-            adds = new AdditionOperator(adds, new StringNode(tokens[i].value))
-            ret.push(adds)
+            strings.push(tokens[i].value)
+            ret.push(new StringLiteral(strings, interps))
         } else {
             throw 'could not handle token ' + t.type
         }
@@ -701,6 +704,26 @@ class ValueNode extends ParseNode {
 class StringNode extends ValueNode {
     constructor(v) {
         super(v)
+    }
+}
+class StringLiteral extends ParseNode {
+    constructor(strings, interpolations) {
+        super()
+        this.strings = strings
+        this.interpolations = interpolations
+    }
+    * apply(input) {
+        yield* this.applyEscape(input, formats.text)
+    }
+    * applyEscape(input, esc, startAt=0) {
+        let s = this.strings[startAt]
+        let i = this.interpolations[startAt]
+        if (!i) return yield s
+        for (let v of this.interpolations[startAt].apply(input)) {
+            for (let r of this.applyEscape(input, esc, startAt + 1)) {
+                yield s + esc(v) + r
+            }
+        }
     }
 }
 class NumberNode extends ValueNode {
