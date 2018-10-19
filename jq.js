@@ -113,6 +113,10 @@ const functions = {
     },
     'empty/0': function*(input) {
     },
+    'path/1': function*(input, args) {
+        let f = args[0]
+        yield* f.paths(input)
+    },
 }
 
 function compile(prog) {

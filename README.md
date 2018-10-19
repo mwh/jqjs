@@ -36,7 +36,7 @@ support.
   including the overloaded type operations.
 - [x] Named functions
     - [ ] Built-in functions
-        - [x] tostring, empty
+        - [x] tostring, empty, path
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions
