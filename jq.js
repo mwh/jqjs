@@ -21,12 +21,12 @@
 */
 
 function compile(prog) {
-    let filter = parse(tokenise(prog))
+    let filter = parse(tokenise(prog).tokens)
     return input => filter.node.apply(input)
 }
 
 function compileNode(prog) {
-    return parse(tokenise(prog)).node
+    return parse(tokenise(prog).tokens).node
 }
 
 function isAlpha(c) {
@@ -87,12 +87,13 @@ function escapeString(s) {
 // quote, number, identifier-index, dot-square, dot, left-square,
 // right-square, left-paren, right-paren, pipe, comma,
 // identifier, colon, left-brace, right-brace
-function tokenise(str, startAt=0) {
+function tokenise(str, startAt=0, parenDepth) {
     let ret = []
     function error(msg) {
         throw msg;
     }
-    toplevel: for (let i = startAt; i < str.length; i++) {
+    let i
+    toplevel: for (i = startAt; i < str.length; i++) {
         let c = str[i]
         if (c == ' ')
             continue;
@@ -122,6 +123,14 @@ function tokenise(str, startAt=0) {
                     else if (q == '/') tok += '/'
                     else if (q == '\\')tok += '\\'
                     else if (q == 'u') uniEsc = 4
+                    else if (q == '(') {
+                        // Interpolation
+                        let r = tokenise(str, i + 1, 0)
+                        ret.push({type: 'quote-interp', value: tok})
+                        tok = ''
+                        ret = ret.concat(r.tokens)
+                        i = r.i
+                    }
                     else throw "invalid escape " + q
                     escaped = false
                 } else if (str[i] == '\\') {
@@ -165,8 +174,12 @@ function tokenise(str, startAt=0) {
             ret.push({type: 'right-square'})
         } else if (c == '(') {
             ret.push({type: 'left-paren'})
+            parenDepth++
         } else if (c == ')') {
             ret.push({type: 'right-paren'})
+            parenDepth--
+            if (parenDepth < 0)
+                return {tokens: ret, i}
         } else if (c == '{') {
             ret.push({type: 'left-brace'})
         } else if (c == '}') {
@@ -193,7 +206,7 @@ function tokenise(str, startAt=0) {
             ret.push({type: 'colon'})
         }
     }
-    return ret
+    return {tokens: ret, i}
 }
 
 // Parse a token stream by recursive descent.
@@ -306,6 +319,7 @@ function parse(tokens, startAt=0, until='none') {
                 stream.push(r.node)
             }
             ret = [shuntingYard(stream)]
+            if (tokens[i]) i--
         // Update-assignment
         } else if (t.type == 'pipe-equals') {
             let lhs = makeFilterNode(ret)
@@ -314,6 +328,24 @@ function parse(tokens, startAt=0, until='none') {
             i = r.i
             let rhs = r.node
             ret = [new UpdateAssignment(lhs, rhs)]
+        // Interpolated string literal
+        } else if (t.type == 'quote-interp') {
+            // Always followed by a paren expression afterwards
+            let s = new StringNode(t.value)
+            let inner = parse(tokens, i + 1, ['right-paren'])
+            i = inner.i
+            let adds = new AdditionOperator(s, inner.node)
+            while (tokens[i].type == 'quote-interp') {
+                s = new StringNode(tokens[i].value)
+                inner = parse(tokens, i + 1, ['right-paren'])
+                i = inner.i
+                adds = new AdditionOperator(adds, s)
+                adds = new AdditionOperator(adds, inner.node)
+            }
+            i++ // Final right paren
+            // Must be the ending quote now
+            adds = new AdditionOperator(adds, new StringNode(tokens[i].value))
+            ret.push(adds)
         } else {
             throw 'could not handle token ' + t.type
         }
