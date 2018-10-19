@@ -110,7 +110,9 @@ const formats = {
 const functions = {
     'tostring/0': function*(input) {
         yield formats.text(input)
-    }
+    },
+    'empty/0': function*(input) {
+    },
 }
 
 function compile(prog) {
@@ -290,6 +292,10 @@ function tokenise(str, startAt=0, parenDepth) {
                 ret.push({type: 'pipe'})
         // Infix operators
         } else if (c == '+' || c == '*' || c == '-' || c == '/' || c == '%') {
+            if (c == '/' && str[i+1] == '/') {
+                c = '//'
+                i++
+            }
             ret.push({type: 'op', op: c})
         } else if (isAlpha(c)) {
             let tok = ''
@@ -593,7 +599,8 @@ function parseObject(tokens, startAt=0) {
 }
 
 function shuntingYard(stream) {
-    const prec = { '+' : 5, '-' : 5, '*' : 10, '/' : 10, '%' : 10 }
+    const prec = { '+' : 5, '-' : 5, '*' : 10, '/' : 10, '%' : 10,
+        '//' : 3 }
     let output = []
     let operators = []
     for (let x of stream) {
@@ -612,7 +619,8 @@ function shuntingYard(stream) {
         '*': MultiplicationOperator,
         '-': SubtractionOperator,
         '/': DivisionOperator,
-        '%': ModuloOperator
+        '%': ModuloOperator,
+        '//': AlternativeOperator
     }
     let stack = []
     for (let o of output) {
@@ -663,8 +671,10 @@ function nameType(o) {
 //   SubtractionOperator, a - b
 //   DivisionOperator, a / b
 //   ModuloOperator, a % b
+//   AlternativeOperator, a // b
 //   UpdateAssignment, .x.y |= .z
 //   FunctionCall, fname(arg1, arg2)
+//   FormatNode, @format, @format "a\(...)"
 class ParseNode {}
 class FilterNode extends ParseNode {
     constructor(nodes) {
@@ -1088,6 +1098,22 @@ class ModuloOperator extends OperatorNode {
         if (lt == 'number' && rt == 'number')
             return l % r
         throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided (remainder)'
+    }
+}
+class AlternativeOperator extends ParseNode {
+    constructor(l, r) {
+        super()
+        this.lhs = l
+        this.rhs = r
+    }
+    * apply(input) {
+        let found = false
+        for (let v of this.lhs.apply(input)) {
+            if (v !== null) found = true
+            yield v
+        }
+        if (!found)
+            yield* this.rhs.apply(input)
     }
 }
 class UpdateAssignment extends ParseNode {

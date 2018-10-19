@@ -46,7 +46,7 @@ support.
     - [x] Format interpolations: `@uri "https://google.com/search?q=\(.x)"`
 - [ ] Comparisons: `==`, `!=`, `<`, `>`, `<=`, `>=`
 - [ ] Conditionals: `if A then B else C`
-- [ ] Alternative operator: `//`
+- [x] Alternative operator: `//`
 - [ ] Try-catch: `try EXP catch EXP`
   - [ ] Error Suppression operator `?`
 - [ ] Regular expressions
