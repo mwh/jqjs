@@ -296,7 +296,11 @@ function tokenise(str, startAt=0, parenDepth) {
                 c = '//'
                 i++
             }
-            ret.push({type: 'op', op: c})
+            if (str[i+1] == '=') {
+                ret.push({type: 'op-equals', op: c})
+                i++
+            } else
+                ret.push({type: 'op', op: c})
         } else if (isAlpha(c)) {
             let tok = ''
             while (isAlpha(str[i]) || isDigit(str[i]))
@@ -454,6 +458,16 @@ function parse(tokens, startAt=0, until='none') {
                 'right-brace', 'right-square'])
             i = r.i
             let rhs = r.node
+            ret = [new UpdateAssignment(lhs, rhs)]
+        // Arithmetic update-assignment
+        } else if (t.type == 'op-equals') {
+            let lhs = makeFilterNode(ret)
+            let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
+                'right-brace', 'right-square'])
+            i = r.i
+            let rhs = r.node
+            rhs = shuntingYard([new IdentityNode(), {type: 'op', op: t.op},
+                rhs])
             ret = [new UpdateAssignment(lhs, rhs)]
         // Interpolated string literal
         } else if (t.type == 'quote-interp') {

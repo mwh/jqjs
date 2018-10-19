@@ -56,7 +56,7 @@ support.
 - [ ] Recursion: `recurse(.children[])`
 - [ ] I/O (unlikely to make sense here)
 - [x] Update-assignment: `.posts[].comments |= . + ["Another"]`
-- [ ] Arithmetic update-assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `//=`
+- [x] Arithmetic update-assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `//=`
 - [ ] Plain assignment: `(.a,.b) = range(2)`
 - [ ] Modules with `import` and `include`
 
