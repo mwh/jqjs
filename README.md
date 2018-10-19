@@ -38,6 +38,9 @@ support.
     - [ ] Built-in functions
     - [ ] User-defined functions
     - [ ] Mathematical functions
+- [ ] String interpolation: `\(foo)`
+- [ ] Format strings and escaping: `@text`, `@json`, `@uri`, `@csv`,
+  `@tsv`, `@sh`, `@base64`, `@base64d`
 - [ ] Comparisons: `==`, `!=`, `<`, `>`, `<=`, `>=`
 - [ ] Conditionals: `if A then B else C`
 - [ ] Alternative operator: `//`
