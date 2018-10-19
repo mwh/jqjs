@@ -23,7 +23,7 @@
 const functions = {
     'tostring/0': function*(input) {
         if (typeof input == 'string')
-            yield input
+            return yield input
         yield prettyPrint(input, '', '', '')
     }
 }
@@ -354,15 +354,18 @@ function parse(tokens, startAt=0, until='none') {
             let s = new StringNode(t.value)
             let inner = parse(tokens, i + 1, ['right-paren'])
             i = inner.i
-            let adds = new AdditionOperator(s, inner.node)
+            // For the sake of non-string values, add (... | tostring)
+            let adds = new AdditionOperator(s, new PipeNode(inner.node,
+                new FunctionCall('tostring/0', [])))
+            i++
             while (tokens[i].type == 'quote-interp') {
                 s = new StringNode(tokens[i].value)
                 inner = parse(tokens, i + 1, ['right-paren'])
-                i = inner.i
+                i = inner.i + 1
                 adds = new AdditionOperator(adds, s)
-                adds = new AdditionOperator(adds, inner.node)
+                adds = new AdditionOperator(adds, new PipeNode(inner.node,
+                    new FunctionCall('tostring/0', [])))
             }
-            i++ // Final right paren
             // Must be the ending quote now
             adds = new AdditionOperator(adds, new StringNode(tokens[i].value))
             ret.push(adds)

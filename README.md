@@ -39,7 +39,7 @@ support.
         - [x] tostring function: `.x | tostring`
     - [ ] User-defined functions
     - [ ] Mathematical functions
-- [ ] String interpolation: `\(foo)`
+- [x] String interpolation: `\(foo)`
 - [ ] Format strings and escaping: `@text`, `@json`, `@uri`, `@csv`,
   `@tsv`, `@sh`, `@base64`, `@base64d`
 - [ ] Comparisons: `==`, `!=`, `<`, `>`, `<=`, `>=`
