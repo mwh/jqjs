@@ -34,14 +34,16 @@ support.
 - [x] Recursive Descent: `..`
 - [x] Addition, subtraction, multiplication, division, and modulo,
   including the overloaded type operations.
-- [ ] Named functions
+- [x] Named functions
     - [ ] Built-in functions
         - [x] tostring function: `.x | tostring`
+        - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions
 - [x] String interpolation: `\(foo)`
-- [ ] Format strings and escaping: `@text`, `@json`, `@uri`, `@csv`,
+- [x] Format strings and escaping: `@text`, `@json`, `@html`, `@uri`, `@csv`,
   `@tsv`, `@sh`, `@base64`, `@base64d`
+    - [x] Format interpolations: `@uri "https://google.com/search?q=\(.x)"`
 - [ ] Comparisons: `==`, `!=`, `<`, `>`, `<=`, `>=`
 - [ ] Conditionals: `if A then B else C`
 - [ ] Alternative operator: `//`
