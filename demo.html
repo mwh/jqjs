@@ -77,6 +77,7 @@
              displayed with some suggestions to fix it (below). -->
         <script type="module" onerror="document.getElementById('corsError').style.display = ''">
             import jq from './jq.js'
+            window.jq = jq
             function refresh() {
                 let prog = document.getElementById('jq-program').value
                 if (prog === '') prog = '.'

@@ -25,6 +25,10 @@ function compile(prog) {
     return input => filter.node.apply(input)
 }
 
+function compileNode(prog) {
+    return parse(tokenise(prog)).node
+}
+
 function isAlpha(c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
@@ -149,6 +153,9 @@ function tokenise(str, startAt=0) {
             } else if (d == '[') {
                 i++
                 ret.push({type: 'dot-square'})
+            } else if (d == '.') {
+                i++
+                ret.push({type: 'dot-dot'})
             } else {
                 ret.push({type: 'dot'})
             }
@@ -209,6 +216,8 @@ function parse(tokens, startAt=0, until='none') {
             ret.push(new StringNode(t.value))
         } else if (t.type == 'dot') {
             ret.push(new IdentityNode())
+        } else if (t.type == 'dot-dot') {
+            ret.push(new RecursiveDescent())
         // Identifiers are only booleans for now
         } else if (t.type == 'identifier') {
             if (t.value == 'true' || t.value == 'false')
@@ -484,6 +493,7 @@ function nameType(o) {
 //   ArrayNode, [...]
 //   PipeNode, a | b | c
 //   ObjectNode { x : y, z, "a b" : 12, (.x.y) : .z }
+//   RecursiveDescent, ..
 //   OperatorNode, a binary infix operator
 //   AdditionOperator, a + b
 //   MultiplicationOperator, a * b
@@ -765,6 +775,34 @@ class ObjectNode extends ParseNode {
         yield obj
     }
 }
+class RecursiveDescent extends ParseNode {
+    constructor() {
+        super()
+    }
+    * apply(input) {
+        yield* this.recurse(input)
+    }
+    * recurse(s) {
+        yield s
+        let t = nameType(s)
+        if (t == 'array' || t == 'object')
+            for (let v of Object.values(s))
+                yield* this.recurse(v)
+    }
+    * paths(input) {
+        yield* this.recursePaths(input, [])
+    }
+    * recursePaths(s, prefix) {
+        yield prefix
+        let t = nameType(s)
+        if (t == 'array')
+            for (let i = 0; i < s.length; i++)
+                yield* this.recursePaths(s[i], prefix.concat([i]))
+        else if (t == 'object')
+            for (let [k,v] of Object.entries(s))
+                yield* this.recursePaths(v, prefix.concat([k]))
+    }
+}
 class OperatorNode extends ParseNode {
     constructor(l, r) {
         super()
@@ -908,5 +946,5 @@ class UpdateAssignment extends ParseNode {
 
 const jq = {compile, prettyPrint}
 // Delete these two lines for a non-module version (CORS-safe)
-export { compile, prettyPrint }
+export { compile, prettyPrint, compileNode }
 export default jq
