@@ -81,10 +81,10 @@ function prettyPrint(val, indent='', step='    ', LF='\n') {
 }
 
 function escapeString(s) {
-    s = s.replace('\\', '\\\\')
-    s = s.replace('"', '\\"')
-    s = s.replace('\n', '\\n')
-    s = s.replace(/[\x00-\x1f]/,
+    s = s.replace(/\\/g, '\\\\')
+    s = s.replace(/"/g, '\\"')
+    s = s.replace(/\n/g, '\\n')
+    s = s.replace(/[\x00-\x1f]/g,
         x => '\\u00' + x.charCodeAt(0).toString(16).padStart(2, '0'))
     return s
 }
