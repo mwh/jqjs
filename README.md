@@ -58,7 +58,7 @@ support.
   - [x] Error Suppression operator `?`
 - [ ] Regular expressions
 - [x] Variable/Symbolic Binding Operator `... as $identifier | ...`
-- [ ] Reduce: `reduce .[] as $item (0; . + $item)`
+- [x] Reduce: `reduce .[] as $item (0; . + $item)`
 - [ ] foreach: `foreach .[] as $item (...;...;...)`
 - [ ] Recursion: `recurse(.children[])`
 - [ ] I/O (unlikely to make sense here)

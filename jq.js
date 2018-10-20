@@ -519,6 +519,23 @@ function parse(tokens, startAt=0, until='none') {
             rhs = shuntingYard([new IdentityNode(), {type: 'op', op: t.op},
                 rhs])
             ret = [new UpdateAssignment(lhs, rhs)]
+        // reduce .[] as $item (0, . + $item)
+        } else if (t.type == 'reduce') {
+            let r = parse(tokens, i + 1, ['as'])
+            i = r.i
+            let generator = r.node
+            i++ // 'as'
+            let name = tokens[i].name
+            i++
+            if (tokens[i].type != 'left-paren')
+                throw 'expected left-paren in reduce'
+            r = parse(tokens, i + 1, ['semicolon'])
+            i = r.i
+            let init = r.node
+            r = parse(tokens, i + 1, ['right-paren'])
+            i = r.i
+            let expr = r.node
+            ret.push(new ReduceNode(generator, name, init, expr))
         // Interpolated string literal
         } else if (t.type == 'quote-interp') {
             let q
@@ -753,6 +770,7 @@ function nameType(o) {
 //   ErrorSuppression, foo?
 //   VariableBinding, ... as $x (not the pipe)
 //   VariableReference, $x
+//   ReduceNode, reduce .[] as $x (0; . + $x)
 class ParseNode {}
 class FilterNode extends ParseNode {
     constructor(nodes) {
@@ -1409,6 +1427,30 @@ class VariableReference extends ParseNode {
     }
     * apply(input, conf) {
         yield conf.variables[this.name]
+    }
+}
+class ReduceNode extends ParseNode {
+    constructor(generator, name, init, expr) {
+        super()
+        this.generator = generator
+        this.name = name
+        this.init = init
+        this.expr = expr
+    }
+    * apply(input, conf) {
+        // This uses all values of the initialiser, but only the
+        // last value of the reduction expression is retained. This
+        // seems to match jq proper's behaviour, but jq has odd
+        // errors in mixed cases that seem unnecessary.
+        for (let accum of this.init.apply(input, conf)) {
+            for (let v of this.generator.apply(input, conf)) {
+                conf.variables[this.name] = v
+                for (let a of this.expr.apply(accum, conf))
+                    accum = a
+            }
+            delete conf.variables[this.name]
+            yield accum
+        }
     }
 }
 
