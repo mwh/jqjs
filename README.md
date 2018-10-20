@@ -51,7 +51,7 @@ support.
     - [x] Format interpolations: `@uri "https://google.com/search?q=\(.x)"`
 - [x] Equality checks: `==`, `!=`
 - [x] Comparisons: `<`, `>`, `<=`, `>=`
-    - [ ] Correct sorting order for unequal types (`null < 7`, `[] < {}`)
+    - [x] Correct sorting order for unequal types (`null < 7`, `[] < {}`)
 - [ ] Conditionals: `if A then B else C`
 - [x] Alternative operator: `//`
 - [ ] Try-catch: `try EXP catch EXP`

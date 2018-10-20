@@ -84,6 +84,50 @@ function escapeString(s) {
     return s
 }
 
+// Implements the jq ordering algorithm, which is terrible.
+function compareValues(a, b) {
+    let at = nameType(a)
+    let bt = nameType(b)
+    if (at != bt) {
+        return compareValues.typeOrder.indexOf(at) -
+            compareValues.typeOrder.indexOf(bt)
+    }
+    if (at == 'boolean') {
+        if (a && !b) return 1
+        if (!a && b) return -1
+    } else if (at == 'number') {
+        return a - b
+    } else if (at == 'string') {
+        if (a < b) return -1
+        if (b < a) return 1
+    } else if (at == 'array') {
+        for (let i = 0; i < a.length; i++) {
+            let v1 = a[i]
+            let v2 = b[i]
+            if (typeof v1 == 'undefined' && typeof v2 != 'undefined')
+                return -1
+            else if (typeof v1 != 'undefined' && typeof v2 == 'undefined')
+                return 1
+            else if (typeof v1 == 'undefined') return 0
+            let c = compareValues(v1, v2)
+            if (c != 0) return c
+        }
+        return 0
+    } else if (at == 'object') {
+        let ka = Object.keys(a).sort()
+        let kb = Object.keys(b).sort()
+        let c = compareValues(ka, kb)
+        if (c) return c
+        for (let k of ka) {
+            c = compareValues(a[k], b[k])
+            if (c) return c
+        }
+    }
+    return 0
+}
+compareValues.typeOrder = ['null', 'boolean', 'number', 'string',
+                           'array', 'object']
+
 // Create a function from a program string.
 //
 // params is an array of parameter names
@@ -1093,7 +1137,7 @@ class LessThanOperator extends OperatorNode {
         super(l, r)
     }
     combine(l, r, lt, rt) {
-        return l < r
+        return compareValues(l, r) < 0
     }
 }
 class GreaterThanOperator extends OperatorNode {
@@ -1101,7 +1145,7 @@ class GreaterThanOperator extends OperatorNode {
         super(l, r)
     }
     combine(l, r, lt, rt) {
-        return l > r
+        return compareValues(l, r) > 0
     }
 }
 class LessEqualsOperator extends OperatorNode {
@@ -1109,7 +1153,7 @@ class LessEqualsOperator extends OperatorNode {
         super(l, r)
     }
     combine(l, r, lt, rt) {
-        return l <= r
+        return compareValues(l, r) <= 0
     }
 }
 class GreaterEqualsOperator extends OperatorNode {
@@ -1117,7 +1161,7 @@ class GreaterEqualsOperator extends OperatorNode {
         super(l, r)
     }
     combine(l, r, lt, rt) {
-        return l >= r
+        return compareValues(l, r) >= 0
     }
 }
 class EqualsOperator extends OperatorNode {
