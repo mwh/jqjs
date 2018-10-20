@@ -40,6 +40,7 @@ support.
         - [x] empty, select, arrays, objects, booleans, numbers, strings, nulls
         - [x] map, map_values, del
         - [x] to_entries, from_entries, with_entries
+        - [x] range/1, range/2, range/3
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions

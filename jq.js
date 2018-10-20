@@ -1409,6 +1409,24 @@ const functions = {
     'type/0': function*(input) {
         yield nameType(input)
     },
+    'range/1': function*(input, conf, args) {
+        for (let m of args[0].apply(input, conf))
+            for (let i = 0; i < m; i++)
+                yield i
+    },
+    'range/2': function*(input, conf, args) {
+        for (let min of args[0].apply(input, conf))
+            for (let max of args[1].apply(input, conf))
+                for (let i = min; i < max; i++)
+                    yield i
+    },
+    'range/3': function*(input, conf, args) {
+        for (let min of args[0].apply(input, conf))
+            for (let max of args[1].apply(input, conf))
+                for (let step of args[2].apply(input, conf))
+                    for (let i = min; i < max; i+=step)
+                        yield i
+    },
 }
 
 defineShorthandFunction('map', 'f', '[.[] | f]')
