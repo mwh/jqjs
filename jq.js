@@ -1519,6 +1519,21 @@ const functions = {
                 if (!b) return yield false
         yield true
     },
+    'add/0': function*(input, conf) {
+        if (nameType(input) != 'array')
+            throw 'can only add up arrays'
+        if (input.length == 0) return yield null
+        if (input.length == 1) return yield input[0]
+        let ret = AdditionOperator.prototype.combine(input[0], input[1],
+            nameType(input[0]), nameType(input[1]))
+        for (let i = 2; i < input.length; i++)
+            ret = AdditionOperator.prototype.combine(ret, input[i],
+                nameType(ret), nameType(input[i]))
+        yield ret
+    },
+    'tonumber/0': function*(input) {
+        yield Number.parseFloat(input)
+    },
 }
 
 defineShorthandFunction('map', 'f', '[.[] | f]')
