@@ -1205,6 +1205,8 @@ class UpdateAssignment extends ParseNode {
         let last = p.pop()
         for (let i of p)
             o = o[i]
+        if (typeof last == 'undefined')
+            return v
         o[last] = v
         if (del)
             delete o[last]
