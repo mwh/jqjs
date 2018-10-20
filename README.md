@@ -36,9 +36,9 @@ support.
   including the overloaded type operations.
 - [x] Named functions
     - Built-in functions
-        - [x] tostring, tonumber, path, length, keys, has, in, type
+        - [x] tostring, tonumber, path, length, keys, has, in, type, del
         - [x] empty, select, arrays, objects, booleans, numbers, strings, nulls
-        - [x] map, map_values, del, add
+        - [x] map, map_values, add, sort, sort_by
         - [x] to_entries, from_entries, with_entries
         - [x] range/1, range/2, range/3
         - [x] any/0, any/1, any/2, all/0, all/1, all/2

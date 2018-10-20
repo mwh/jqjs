@@ -1534,6 +1534,23 @@ const functions = {
     'tonumber/0': function*(input) {
         yield Number.parseFloat(input)
     },
+    'sort/0': function*(input, conf) {
+        if (nameType(input) != 'array')
+            throw 'can only sort arrays, not ' + nameType(input)
+        let r = Array.from(input)
+        yield r.sort(compareValues)
+    },
+    'sort_by/1': function*(input, conf, args) {
+        if (nameType(input) != 'array')
+            throw 'can only sort arrays, not ' + nameType(input)
+        let key = args[0]
+        let r = input.map(v => ({
+            key: key.apply(v, conf).next().value,
+            value: v
+        }))
+        r.sort((a, b) => compareValues(a.key, b.key))
+        yield r.map(a => a.value)
+    },
 }
 
 defineShorthandFunction('map', 'f', '[.[] | f]')
