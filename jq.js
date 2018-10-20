@@ -1551,6 +1551,43 @@ const functions = {
         r.sort((a, b) => compareValues(a.key, b.key))
         yield r.map(a => a.value)
     },
+    'explode/0': function*(input, conf) {
+        if (nameType(input) != 'string')
+            throw 'can only explode string, not ' + nameType(input)
+        let ret = []
+        for (let i = 0; i < input.length; i++) {
+            let c = input.charCodeAt(i)
+            ret.push(c)
+            if (c > 0xffff)
+                i++
+        }
+        yield ret
+    },
+    'implode/0': function*(input, conf) {
+        if (nameType(input) != 'array')
+            throw 'can only implode array, not ' + nameType(input)
+        yield input.map(x => String.fromCodePoint(x)).join('')
+    },
+    'split/1': function*(input, conf, args) {
+        if (nameType(input) != 'string')
+            throw 'can only split string, not ' + nameType(input)
+        for (let s of args[0].apply(input, conf)) {
+            yield input.split(s)
+        }
+    },
+    'join/1': function*(input, conf, args) {
+        if (nameType(input) != 'array')
+            throw 'can only join array, not ' + nameType(input)
+        let a = input.map(x => {
+            if (typeof x == 'number') return '' + x
+            if (typeof x == 'string') return x
+            if (typeof x == 'boolean') return '' + x
+            if (x === null) return ''
+            throw 'cannot join ' + nameType(x)
+        })
+        for (let s of args[0].apply(input, conf))
+            yield a.join(s)
+    },
 }
 
 defineShorthandFunction('map', 'f', '[.[] | f]')
