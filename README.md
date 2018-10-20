@@ -41,6 +41,7 @@ support.
         - [x] map, map_values, del
         - [x] to_entries, from_entries, with_entries
         - [x] range/1, range/2, range/3
+        - [x] any/0, any/1, any/2, all/0, all/1, all/2
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions

@@ -1427,6 +1427,52 @@ const functions = {
                     for (let i = min; i < max; i+=step)
                         yield i
     },
+    'any/0': function*(input, conf) {
+        if (nameType(input) != 'array')
+            throw 'any/0 requires array as input, not ' + nameType(input)
+        for (let b of input)
+            if (b) return yield true
+        yield false
+    },
+    'any/1': function*(input, conf, args) {
+        if (nameType(input) != 'array')
+            throw 'any/1 requires array as input, not ' + nameType(input)
+        for (let v of input)
+            for (let b of args[0].apply(v, conf))
+                if (b) return yield true
+        yield false
+    },
+    'any/2': function*(input, conf, args) {
+        let gen = args[0]
+        let cond = args[1]
+        for (let v of gen.apply(input, conf))
+            for (let b of cond.apply(v, conf))
+                if (b) return yield true
+        yield false
+    },
+    'all/0': function*(input, conf) {
+        if (nameType(input) != 'array')
+            throw 'all/0 requires array as input, not ' + nameType(input)
+        for (let b of input)
+            if (!b) return yield false
+        yield true
+    },
+    'all/1': function*(input, conf, args) {
+        if (nameType(input) != 'array')
+            throw 'all/1 requires array as input, not ' + nameType(input)
+        for (let v of input)
+            for (let b of args[0].apply(v, conf))
+                if (!b) return yield false
+        yield true
+    },
+    'all/2': function*(input, conf, args) {
+        let gen = args[0]
+        let cond = args[1]
+        for (let v of gen.apply(input, conf))
+            for (let b of cond.apply(v, conf))
+                if (!b) return yield false
+        yield true
+    },
 }
 
 defineShorthandFunction('map', 'f', '[.[] | f]')
