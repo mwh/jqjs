@@ -84,6 +84,18 @@ function escapeString(s) {
     return s
 }
 
+function* zip(a, b) {
+    let aa = a[Symbol.iterator]()
+    let bb = b[Symbol.iterator]()
+    let v1 = aa.next()
+    let v2 = bb.next()
+    while (!v1.done && !v2.done) {
+        yield [v1.value, v2.value]
+        v1 = aa.next()
+        v2 = bb.next()
+    }
+}
+
 // Implements the jq ordering algorithm, which is terrible.
 function compareValues(a, b) {
     let at = nameType(a)
@@ -274,6 +286,8 @@ function tokenise(str, startAt=0, parenDepth) {
             ret.push({type: 'semicolon'})
         } else if (c == '@') {
             ret.push({type: 'at'})
+        } else if (c == '?') {
+            ret.push({type: 'question'})
         } else if (c == '|') {
             let d = str[i+1]
             if (d == '=') {
@@ -435,6 +449,12 @@ function parse(tokens, startAt=0, until='none') {
             if (tokens[i] && until.indexOf(tokens[i].type) != -1)
                 i--
             ret = [new PipeNode(lhs, rhs)]
+        // Question mark suppresses errors on the preceding filter
+        } else if (t.type == 'question') {
+            let p = ret.pop()
+            if (!p)
+                throw 'unexpected ? without preceding filter'
+            ret.push(new ErrorSuppression(p))
         // Infix operators
         } else if (t.type == 'op') {
             if (ret.length == 0 && t.op == '-' && tokens[i+1].type == 'number') {
@@ -704,6 +724,7 @@ function nameType(o) {
 //   UpdateAssignment, .x.y |= .z
 //   FunctionCall, fname(arg1, arg2)
 //   FormatNode, @format, @format "a\(...)"
+//   ErrorSuppression, foo?
 class ParseNode {}
 class FilterNode extends ParseNode {
     constructor(nodes) {
@@ -740,13 +761,22 @@ class IndexNode extends ParseNode {
         this.index = index
     }
     * apply(input, conf) {
-        for (let l of this.lhs.apply(input, conf))
+        for (let l of this.lhs.apply(input, conf)) {
+            let t = nameType(l)
             for (let i of this.index.apply(input, conf)) {
+                if (t == 'array' && nameType(i) != 'number')
+                    throw 'Cannot index array with ' + nameType(i) + ' ' +
+                        JSON.stringify(i)
+                else if (t == 'object' && nameType(i) != 'string')
+                    throw 'Cannot index object with ' + nameType(i) + ' ' +
+                        JSON.stringify(i)
                 if (typeof i == 'number' && i < 0 && nameType(l) == 'array')
                     yield l[l.length + i]
                 else
                     yield l[i]
+                    yield typeof l[i] == 'undefined' ? null : l[i]
             }
+        }
     }
     * paths(input, conf) {
         for (let l of this.lhs.paths(input, conf))
@@ -784,11 +814,19 @@ class GenericIndex extends ParseNode {
         this.index = innerNode
     }
     * apply(input, conf) {
-        for (let i of this.index.apply(input, conf))
+        let t = nameType(input)
+        for (let i of this.index.apply(input, conf)) {
+            if (t == 'array' && nameType(i) != 'number')
+                throw 'Cannot index array with ' + nameType(i) + ' ' +
+                    JSON.stringify(i)
+            else if (t == 'object' && nameType(i) != 'string')
+                throw 'Cannot index object with ' + nameType(i) + ' ' +
+                    JSON.stringify(i)
             if (typeof i == 'number' && i < 0 && nameType(input) == 'array')
                 yield input[input.length + i]
             else
-                yield input[i]
+                yield typeof input[i] == 'undefined' ? null : input[i]
+        }
     }
     * paths(input, conf) {
         for (let a of this.index.apply(input, conf))
@@ -1297,6 +1335,29 @@ class FormatNode extends ParseNode {
         if (!this.string)
             return yield formats[this.name](input)
         yield* this.string.applyEscape(input, formats[this.name], conf)
+    }
+}
+class ErrorSuppression extends ParseNode {
+    constructor(inner) {
+        super()
+        this.inner = inner
+    }
+    * apply(input, conf) {
+        try {
+            for (let o of this.inner.apply(input, conf))
+                if (o !== null)
+                    yield o
+        } catch {
+        }
+    }
+    * paths(input, conf) {
+        try {
+            for (let [o,p] of zip(this.inner.apply(input, conf),
+                    this.inner.paths(input, conf)))
+                if (o !== null)
+                    yield p
+        } catch {
+        }
     }
 }
 

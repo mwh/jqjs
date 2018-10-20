@@ -55,7 +55,7 @@ support.
 - [ ] Conditionals: `if A then B else C`
 - [x] Alternative operator: `//`
 - [ ] Try-catch: `try EXP catch EXP`
-  - [ ] Error Suppression operator `?`
+  - [x] Error Suppression operator `?`
 - [ ] Regular expressions
 - [ ] Variable/Symbolic Binding Operator `... as $identifier | ...`
 - [ ] Reduce: `reduce .[] as $item (0; . + $item)`
