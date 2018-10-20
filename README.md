@@ -36,7 +36,8 @@ support.
   including the overloaded type operations.
 - [x] Named functions
     - Built-in functions
-        - [x] tostring, empty, path, select, length, keys, has, in
+        - [x] tostring, path, length, keys, has, in, type
+        - [x] empty, select, arrays, objects, booleans, numbers, strings, nulls
         - [x] map, map_values, del
         - [x] to_entries, from_entries, with_entries
         - [ ] the others

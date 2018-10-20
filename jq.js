@@ -92,8 +92,11 @@ function escapeString(s) {
 // For example:
 //     makeFunc(['f'], '[.[] | f]')
 // defines the map function.
-function makeFunc(params, body) {
+function makeFunc(params, body, pathFunc=false) {
     let c = compileNode(body)
+    let f = (x, conf) => c.apply(x, conf)
+    if (pathFunc)
+        f = (x, conf) => c.paths(x, conf)
     return function*(input, conf, args) {
         let origArgs = conf.userFuncArgs
         conf.userFuncArgs = Object.create(origArgs)
@@ -102,7 +105,7 @@ function makeFunc(params, body) {
             let pv = args[i]
             conf.userFuncArgs[pn + '/0'] = pv
         }
-        yield* c.apply(input, conf)
+        yield* f(input, conf)
         conf.userFuncArgs = origArgs
     }
 }
@@ -115,6 +118,7 @@ function makeFunc(params, body) {
 function defineShorthandFunction(name, params, body) {
     let fname = name + '/' + params.length
     functions[fname] = makeFunc(params, body)
+    functions[fname + '-paths'] = makeFunc(params, body, true)
 }
 
 // Recursive-descent parser for JQ query language
@@ -1402,12 +1406,21 @@ const functions = {
         } else
             throw 'cannot use entries from ' + t
     },
+    'type/0': function*(input) {
+        yield nameType(input)
+    },
 }
 
 defineShorthandFunction('map', 'f', '[.[] | f]')
 defineShorthandFunction('map_values', 'f', '.[] |= f')
 defineShorthandFunction('del', 'p', 'p |= empty')
 defineShorthandFunction('with_entries', 'w', 'to_entries | map(w) | from_entries')
+defineShorthandFunction('arrays', '', 'select(type == "array")')
+defineShorthandFunction('objects', '', 'select(type == "object")')
+defineShorthandFunction('booleans', '', 'select(type == "boolean")')
+defineShorthandFunction('strings', '', 'select(type == "string")')
+defineShorthandFunction('numbers', '', 'select(type == "number")')
+defineShorthandFunction('nulls', '', 'select(type == "null")')
 
 const jq = {compile, prettyPrint}
 // Delete these two lines for a non-module version (CORS-safe)
