@@ -1359,7 +1359,7 @@ const functions = {
     'length/0': function*(input) {
         let t = nameType(input)
         if (t == 'string' || t == 'array')
-            return yield t.length
+            return yield input.length
         if (t == 'null') return yield 0
         if (t == 'object') return yield Object.keys(input).length
         throw 'cannot compute length of ' + t
