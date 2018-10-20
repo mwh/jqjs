@@ -22,7 +22,10 @@
 
 function compile(prog) {
     let filter = parse(tokenise(prog).tokens)
-    return input => filter.node.apply(input, {})
+    return input => filter.node.apply(input, {
+        userFuncs: {},
+        userFuncArgs: {},
+    })
 }
 
 function compileNode(prog) {
@@ -79,6 +82,39 @@ function escapeString(s) {
     s = s.replace(/[\x00-\x1f]/g,
         x => '\\u00' + x.charCodeAt(0).toString(16).padStart(2, '0'))
     return s
+}
+
+// Create a function from a program string.
+//
+// params is an array of parameter names
+// body is a jq program as a string, which may use the parameters
+//
+// For example:
+//     makeFunc(['f'], '[.[] | f]')
+// defines the map function.
+function makeFunc(params, body) {
+    let c = compileNode(body)
+    return function*(input, conf, args) {
+        let origArgs = conf.userFuncArgs
+        conf.userFuncArgs = {}
+        for (let i = 0; i < params.length; i++) {
+            let pn = params[i]
+            let pv = args[i]
+            conf.userFuncArgs[pn + '/0'] = pv
+        }
+        yield* c.apply(input, conf)
+        conf.userFuncArgs = origArgs
+    }
+}
+
+// Define and save a function that is shorthand for a longer expression
+//
+// name is the name of the function
+// params is an array of parameters, or a string of one-character names
+// body is a jq program as a string
+function defineShorthandFunction(name, params, body) {
+    let fname = name + '/' + params.length
+    functions[fname] = makeFunc(params, body)
 }
 
 // Recursive-descent parser for JQ query language
@@ -224,7 +260,7 @@ function tokenise(str, startAt=0, parenDepth) {
             ret.push({type: 'op', op: '!='})
         } else if (isAlpha(c)) {
             let tok = ''
-            while (isAlpha(str[i]) || isDigit(str[i]))
+            while (isAlpha(str[i]) || isDigit(str[i]) || str[i] == '_')
                 tok += str[i++]
             ret.push({type: 'identifier', value: tok})
             i--
@@ -1178,7 +1214,14 @@ class FunctionCall extends ParseNode {
         this.args = args
     }
     apply(input, conf) {
-        let func = functions[this.name]
+        let func
+        let ufa = conf.userFuncArgs[this.name]
+        if (ufa)
+            func = function(input, conf, args) {
+                return ufa.apply(input, conf)
+            }
+        else if (!func)
+            func = functions[this.name]
         if (!func)
             throw 'no such function ' + this.name
         let argStack = []
@@ -1335,6 +1378,9 @@ const functions = {
             yield o.hasOwnProperty(input)
     },
 }
+
+defineShorthandFunction('map', 'f', '[.[] | f]')
+defineShorthandFunction('map_values', 'f', '.[] |= f')
 
 const jq = {compile, prettyPrint}
 // Delete these two lines for a non-module version (CORS-safe)
