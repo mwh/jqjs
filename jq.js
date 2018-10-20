@@ -22,7 +22,7 @@
 
 function compile(prog) {
     let filter = parse(tokenise(prog).tokens)
-    return input => filter.node.apply(input)
+    return input => filter.node.apply(input, {})
 }
 
 function compileNode(prog) {
@@ -237,7 +237,7 @@ function tokenise(str, startAt=0, parenDepth) {
 
 // Parse a token stream by recursive descent.
 //
-// Returns {node: {*apply(input)}, i}, where i is the position in the
+// Returns {node: {*apply(input, conf)}, i}, where i is the position in the
 // token stream and node is one of the filtering nodes defined below.
 // Returns at end of stream or when a token of type until is found.
 function parse(tokens, startAt=0, until='none') {
@@ -631,19 +631,19 @@ class FilterNode extends ParseNode {
             this.source = nodes.length == 1 ? nodes[0] : new FilterNode(nodes)
         }
     }
-    * apply(input) {
+    * apply(input, conf) {
         if (!this.filter)
             return
-        for (let v of this.source.apply(input)) {
-            yield* this.filter.apply(v)
+        for (let v of this.source.apply(input, conf)) {
+            yield* this.filter.apply(v, conf)
         }
     }
-    * paths(input) {
+    * paths(input, conf) {
         if (!this.filter) {
             return []
         }
-        for (let v of this.source.paths(input)) {
-            for (let w of this.filter.paths(input)) {
+        for (let v of this.source.paths(input, conf)) {
+            for (let w of this.filter.paths(input, conf)) {
                 yield v.concat(w)
             }
         }
@@ -655,18 +655,18 @@ class IndexNode extends ParseNode {
         this.lhs = lhs
         this.index = index
     }
-    * apply(input) {
-        for (let l of this.lhs.apply(input))
-            for (let i of this.index.apply(input)) {
+    * apply(input, conf) {
+        for (let l of this.lhs.apply(input, conf))
+            for (let i of this.index.apply(input, conf)) {
                 if (typeof i == 'number' && i < 0 && nameType(l) == 'array')
                     yield l[l.length + i]
                 else
                     yield l[i]
             }
     }
-    * paths(input) {
-        for (let l of this.lhs.paths(input))
-            for (let a of this.index.apply(input))
+    * paths(input, conf) {
+        for (let l of this.lhs.paths(input, conf))
+            for (let a of this.index.apply(input, conf))
                 yield l.concat([a])
     }
 }
@@ -677,20 +677,20 @@ class SliceNode extends ParseNode {
         this.from = from
         this.to = to
     }
-    * apply(input) {
-        for (let l of this.lhs.apply(input))
-            for (let s of this.from.apply(input)) {
+    * apply(input, conf) {
+        for (let l of this.lhs.apply(input, conf))
+            for (let s of this.from.apply(input, conf)) {
                 if (s < 0) s += l.length
-                for (let e of this.to.apply(input)) {
+                for (let e of this.to.apply(input, conf)) {
                     if (e < 0) e += l.length
                     yield l.slice(s, e)
                 }
             }
     }
-    * paths(input) {
-        for (let l of this.lhs.paths(input))
-            for (let a of this.from.apply(input))
-                for (let b of this.to.apply(input))
+    * paths(input, conf) {
+        for (let l of this.lhs.paths(input, conf))
+            for (let a of this.from.apply(input, conf))
+                for (let b of this.to.apply(input, conf))
                     yield l.concat([{start:a, end:b}])
     }
 }
@@ -699,15 +699,15 @@ class GenericIndex extends ParseNode {
         super()
         this.index = innerNode
     }
-    * apply(input) {
-        for (let i of this.index.apply(input))
+    * apply(input, conf) {
+        for (let i of this.index.apply(input, conf))
             if (typeof i == 'number' && i < 0 && nameType(input) == 'array')
                 yield input[input.length + i]
             else
                 yield input[i]
     }
-    * paths(input) {
-        for (let a of this.index.apply(input))
+    * paths(input, conf) {
+        for (let a of this.index.apply(input, conf))
             yield [a]
     }
 }
@@ -722,19 +722,19 @@ class GenericSlice extends ParseNode {
         this.from = fr
         this.to = to
     }
-    * apply(input) {
-        for (let l of this.from.apply(input)) {
+    * apply(input, conf) {
+        for (let l of this.from.apply(input, conf)) {
             if (l < 0) l += input.length
-            for (let r of this.to.apply(input)) {
+            for (let r of this.to.apply(input, conf)) {
                 if (r < 0)
                     r += input.length
                 yield input.slice(l, r)
             }
         }
     }
-    * paths(input) {
-        for (let l of this.from.apply(input))
-            for (let r of this.to.apply(input))
+    * paths(input, conf) {
+        for (let l of this.from.apply(input, conf))
+            for (let r of this.to.apply(input, conf))
                 yield [{start: l, end: r}]
     }
 }
@@ -742,10 +742,10 @@ class IdentityNode extends ParseNode {
     constructor() {
         super()
     }
-    * apply(input) {
+    * apply(input, conf) {
         yield input
     }
-    * paths(input) {
+    * paths(input, conf) {
         yield []
     }
 }
@@ -757,7 +757,7 @@ class ValueNode extends ParseNode {
     * apply() {
         yield this.value
     }
-    * paths(input) {
+    * paths(input, conf) {
         yield this.value
     }
 }
@@ -772,15 +772,15 @@ class StringLiteral extends ParseNode {
         this.strings = strings
         this.interpolations = interpolations
     }
-    * apply(input) {
-        yield* this.applyEscape(input, formats.text)
+    * apply(input, conf) {
+        yield* this.applyEscape(input, formats.text, conf)
     }
-    * applyEscape(input, esc, startAt=0) {
+    * applyEscape(input, esc, conf, startAt=0) {
         let s = this.strings[startAt]
         let i = this.interpolations[startAt]
         if (!i) return yield s
-        for (let v of this.interpolations[startAt].apply(input)) {
-            for (let r of this.applyEscape(input, esc, startAt + 1)) {
+        for (let v of this.interpolations[startAt].apply(input, conf)) {
+            for (let r of this.applyEscape(input, esc, conf, startAt + 1)) {
                 yield s + esc(v) + r
             }
         }
@@ -801,13 +801,13 @@ class SpecificValueIterator extends ParseNode {
         super()
         this.source = source
     }
-    * apply(input) {
-        for (let o of this.source.apply(input))
+    * apply(input, conf) {
+        for (let o of this.source.apply(input, conf))
             yield* Object.values(o)
     }
-    * paths(input) {
-        for (let [p, v] of this.zip(this.source.paths(input),
-                this.source.apply(input))) {
+    * paths(input, conf) {
+        for (let [p, v] of this.zip(this.source.paths(input, conf),
+                this.source.apply(input, conf))) {
                 if (nameType(v) == 'array')
                     for (let i = 0; i < v.length; i++)
                         yield p.concat([i])
@@ -833,13 +833,13 @@ class GenericValueIterator extends ParseNode {
     constructor() {
         super()
     }
-    * apply(input) {
+    * apply(input, conf) {
         if (nameType(input) == 'array')
             yield* input
         else
             yield* Object.values(input)
     }
-    * paths(input) {
+    * paths(input, conf) {
         if (nameType(input) == 'array')
             for (let i = 0; i < input.length; i++)
                 yield [i]
@@ -853,13 +853,13 @@ class CommaNode extends ParseNode {
         super()
         this.branches = branches
     }
-    * apply(input) {
+    * apply(input, conf) {
         for (let b of this.branches)
-            yield* b.apply(input)
+            yield* b.apply(input, conf)
     }
-    * paths(input) {
+    * paths(input, conf) {
         for (let b of this.branches)
-            yield* b.paths(input)
+            yield* b.paths(input, conf)
     }
 }
 class ArrayNode extends ParseNode {
@@ -867,8 +867,8 @@ class ArrayNode extends ParseNode {
         super()
         this.body = body
     }
-    * apply(input) {
-        yield Array.from(this.body.apply(input))
+    * apply(input, conf) {
+        yield Array.from(this.body.apply(input, conf))
     }
 }
 class PipeNode extends ParseNode {
@@ -877,15 +877,15 @@ class PipeNode extends ParseNode {
         this.lhs = lhs
         this.rhs = rhs
     }
-    * apply(input) {
-        for (let v of this.lhs.apply(input))
-            for (let q of this.rhs.apply(v))
+    * apply(input, conf) {
+        for (let v of this.lhs.apply(input, conf))
+            for (let q of this.rhs.apply(v, conf))
                 yield q
     }
-    * paths(input) {
-        for (let [p, v] of this.zip(this.lhs.paths(input),
-                this.lhs.apply(input))) {
-            for (let p2 of this.rhs.paths(v)) {
+    * paths(input, conf) {
+        for (let [p, v] of this.zip(this.lhs.paths(input, conf),
+                this.lhs.apply(input, conf))) {
+            for (let p2 of this.rhs.paths(v, conf)) {
                 yield p.concat(p2)
             }
         }
@@ -907,11 +907,11 @@ class ObjectNode extends ParseNode {
         super()
         this.fields = fields
     }
-    * apply(input) {
+    * apply(input, conf) {
         let obj = {}
         for (let {key, value} of this.fields) {
-            for (let k of key.apply(input))
-                for (let v of value.apply(input))
+            for (let k of key.apply(input, conf))
+                for (let v of value.apply(input, conf))
                     obj[k] = v
         }
         yield obj
@@ -921,7 +921,7 @@ class RecursiveDescent extends ParseNode {
     constructor() {
         super()
     }
-    * apply(input) {
+    * apply(input, conf) {
         yield* this.recurse(input)
     }
     * recurse(s) {
@@ -931,7 +931,7 @@ class RecursiveDescent extends ParseNode {
             for (let v of Object.values(s))
                 yield* this.recurse(v)
     }
-    * paths(input) {
+    * paths(input, conf) {
         yield* this.recursePaths(input, [])
     }
     * recursePaths(s, prefix) {
@@ -951,9 +951,9 @@ class OperatorNode extends ParseNode {
         this.l = l
         this.r = r
     }
-    * apply(input) {
-        for (let rr of this.r.apply(input))
-            for (let ll of this.l.apply(input))
+    * apply(input, conf) {
+        for (let rr of this.r.apply(input, conf))
+            for (let ll of this.l.apply(input, conf))
                 yield this.combine(ll, rr, nameType(ll), nameType(rr))
     }
 }
@@ -1124,14 +1124,14 @@ class AlternativeOperator extends ParseNode {
         this.lhs = l
         this.rhs = r
     }
-    * apply(input) {
+    * apply(input, conf) {
         let found = false
-        for (let v of this.lhs.apply(input)) {
+        for (let v of this.lhs.apply(input, conf)) {
             if (v !== null) found = true
             yield v
         }
         if (!found)
-            yield* this.rhs.apply(input)
+            yield* this.rhs.apply(input, conf)
     }
 }
 class UpdateAssignment extends ParseNode {
@@ -1140,10 +1140,10 @@ class UpdateAssignment extends ParseNode {
         this.l = l
         this.r = r
     }
-    * apply(input) {
+    * apply(input, conf) {
         input = JSON.parse(JSON.stringify(input))
-        for (let p of this.l.paths(input)) {
-            let it = this.r.apply(this.get(input, p)).next()
+        for (let p of this.l.paths(input, conf)) {
+            let it = this.r.apply(this.get(input, p), conf).next()
             if (it.done)
                 input = this.update(input, p, null, true)
             else
@@ -1177,18 +1177,18 @@ class FunctionCall extends ParseNode {
         this.name = fname
         this.args = args
     }
-    apply(input) {
+    apply(input, conf) {
         let func = functions[this.name]
         if (!func)
             throw 'no such function ' + this.name
         let argStack = []
-        return func(input, this.args)
+        return func(input, conf, this.args)
     }
-    paths(input) {
+    paths(input, conf) {
         let func = functions[this.name + '-paths']
         if (!func)
             throw 'no paths for ' + this.name
-        return func(input, this.args)
+        return func(input, conf, this.args)
     }
 }
 class FormatNode extends ParseNode {
@@ -1197,10 +1197,10 @@ class FormatNode extends ParseNode {
         this.name = fname
         this.string = quote
     }
-    * apply(input) {
+    * apply(input, conf) {
         if (!this.string)
             return yield formats[this.name](input)
-        yield* this.string.applyEscape(input, formats[this.name])
+        yield* this.string.applyEscape(input, formats[this.name], conf)
     }
 }
 
@@ -1297,19 +1297,19 @@ const functions = {
     },
     'empty/0': function*(input) {
     },
-    'path/1': function*(input, args) {
+    'path/1': function*(input, conf, args) {
         let f = args[0]
-        yield* f.paths(input)
+        yield* f.paths(input, conf)
     },
-    'select/1': function*(input, args) {
+    'select/1': function*(input, conf, args) {
         let selector = args[0]
-        for (let b of selector.apply(input))
+        for (let b of selector.apply(input, conf))
             if (b)
                 yield input
     },
-    'select/1-paths': function*(input, args) {
+    'select/1-paths': function*(input, conf, args) {
         let selector = args[0]
-        for (let b of selector.apply(input))
+        for (let b of selector.apply(input, conf))
             if (b)
                 yield []
     },
@@ -1324,14 +1324,14 @@ const functions = {
     'keys/0': function*(input) {
         yield* Object.keys(input).sort()
     },
-    'has/1': function*(input, args) {
+    'has/1': function*(input, conf, args) {
         let f = args[0]
-        for (let k of f.apply(input))
+        for (let k of f.apply(input, conf))
             yield input.hasOwnProperty(k)
     },
-    'in/1': function*(input, args) {
+    'in/1': function*(input, conf, args) {
         let f = args[0]
-        for (let o of f.apply(input))
+        for (let o of f.apply(input, conf))
             yield o.hasOwnProperty(input)
     },
 }
