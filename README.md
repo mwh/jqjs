@@ -57,7 +57,7 @@ support.
 - [ ] Try-catch: `try EXP catch EXP`
   - [x] Error Suppression operator `?`
 - [ ] Regular expressions
-- [ ] Variable/Symbolic Binding Operator `... as $identifier | ...`
+- [x] Variable/Symbolic Binding Operator `... as $identifier | ...`
 - [ ] Reduce: `reduce .[] as $item (0; . + $item)`
 - [ ] foreach: `foreach .[] as $item (...;...;...)`
 - [ ] Recursion: `recurse(.children[])`

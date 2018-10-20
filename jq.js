@@ -25,6 +25,7 @@ function compile(prog) {
     return input => filter.node.apply(input, {
         userFuncs: {},
         userFuncArgs: {},
+        variables: {}
     })
 }
 
@@ -182,7 +183,8 @@ function defineShorthandFunction(name, params, body) {
 // Split input program into tokens. Tokens are:
 // quote, number, identifier-index, dot-square, dot, left-square,
 // right-square, left-paren, right-paren, pipe, comma,
-// identifier, colon, left-brace, right-brace
+// identifier, colon, left-brace, right-brace, semicolon, at,
+// variable, as, reduce, foreach, def, import, include, question
 function tokenise(str, startAt=0, parenDepth) {
     let ret = []
     function error(msg) {
@@ -264,6 +266,16 @@ function tokenise(str, startAt=0, parenDepth) {
             } else {
                 ret.push({type: 'dot'})
             }
+        } else if (c == '$') {
+            let d = str[i+1]
+            i++
+            let tok = ''
+            while (isAlpha(str[i]) || isDigit(str[i])) {
+                tok += str[i]
+                i++
+            }
+            ret.push({type: 'variable', name: tok})
+            i--
         } else if (c == '[') {
             ret.push({type: 'left-square'})
         } else if (c == ']') {
@@ -324,7 +336,12 @@ function tokenise(str, startAt=0, parenDepth) {
             let tok = ''
             while (isAlpha(str[i]) || isDigit(str[i]) || str[i] == '_')
                 tok += str[i++]
-            ret.push({type: 'identifier', value: tok})
+            if (tok == 'as' || tok == 'reduce' || tok == 'foreach'
+                    || tok == 'import' || tok == 'include' || tok == 'def') {
+                ret.push({type: tok})
+            } else {
+                ret.push({type: 'identifier', value: tok})
+            }
             i--
         } else if (c == ':') {
             ret.push({type: 'colon'})
@@ -435,7 +452,8 @@ function parse(tokens, startAt=0, until='none') {
             ret = []
         // Pipe consumes everything previous *including* commas
         // and splits by recursing for the right-hand side.
-        } else if (t.type == 'pipe') {
+        // "as" indicates a variable binding.
+        } else if (t.type == 'pipe' || t.type == 'as') {
             if (commaAccum.length) {
                 // .x,.y | .[1] is the same as (.x,.y) | .[1]
                 commaAccum.push(makeFilterNode(ret))
@@ -443,6 +461,11 @@ function parse(tokens, startAt=0, until='none') {
                 commaAccum = []
             }
             let lhs = makeFilterNode(ret)
+            if (t.type == 'as') {
+                let nameTok = tokens[i+1]
+                lhs = new VariableBinding(lhs, nameTok.name)
+                i += 2
+            }
             let r = parse(tokens, i + 1, until)
             let rhs = r.node
             i = r.i
@@ -501,6 +524,9 @@ function parse(tokens, startAt=0, until='none') {
             let q
             ({q, i} = parseStringInterpolation(tokens, i))
             ret.push(q)
+        // Variable reference
+        } else if (t.type == 'variable') {
+            ret.push(new VariableReference(t.name))
         } else {
             throw 'could not handle token ' + t.type
         }
@@ -725,6 +751,8 @@ function nameType(o) {
 //   FunctionCall, fname(arg1, arg2)
 //   FormatNode, @format, @format "a\(...)"
 //   ErrorSuppression, foo?
+//   VariableBinding, ... as $x (not the pipe)
+//   VariableReference, $x
 class ParseNode {}
 class FilterNode extends ParseNode {
     constructor(nodes) {
@@ -1358,6 +1386,29 @@ class ErrorSuppression extends ParseNode {
                     yield p
         } catch {
         }
+    }
+}
+class VariableBinding extends ParseNode {
+    constructor(lhs, name) {
+        super()
+        this.value = lhs
+        this.name = name
+    }
+    * apply(input, conf) {
+        for (let v of this.value.apply(input, conf)) {
+            conf.variables[this.name] = v
+            yield input
+        }
+        delete conf.variables[this.name]
+    }
+}
+class VariableReference extends ParseNode {
+    constructor(name) {
+        super()
+        this.name = name
+    }
+    * apply(input, conf) {
+        yield conf.variables[this.name]
     }
 }
 
