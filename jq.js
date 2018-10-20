@@ -1486,10 +1486,20 @@ const functions = {
         for (let k of f.apply(input, conf))
             yield input.hasOwnProperty(k)
     },
+    'has/1-paths': function*(input, conf, args) {
+        let f = args[0]
+        for (let k of f.apply(input, conf))
+            if (input.hasOwnProperty(k)) yield []
+    },
     'in/1': function*(input, conf, args) {
         let f = args[0]
         for (let o of f.apply(input, conf))
             yield o.hasOwnProperty(input)
+    },
+    'in/1-paths': function*(input, conf, args) {
+        let f = args[0]
+        for (let o of f.apply(input, conf))
+            if (o.hasOwnProperty(input)) yield []
     },
     'to_entries/0': function*(input, conf) {
         let t = nameType(input)
