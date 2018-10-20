@@ -1228,6 +1228,9 @@ class FunctionCall extends ParseNode {
         return func(input, conf, this.args)
     }
     paths(input, conf) {
+        let ufa = conf.userFuncArgs[this.name]
+        if (ufa)
+            return ufa.paths(input, conf)
         let func = functions[this.name + '-paths']
         if (!func)
             throw 'no paths for ' + this.name
@@ -1381,6 +1384,7 @@ const functions = {
 
 defineShorthandFunction('map', 'f', '[.[] | f]')
 defineShorthandFunction('map_values', 'f', '.[] |= f')
+defineShorthandFunction('del', 'p', 'p |= empty')
 
 const jq = {compile, prettyPrint}
 // Delete these two lines for a non-module version (CORS-safe)
