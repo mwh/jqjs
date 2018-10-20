@@ -96,7 +96,7 @@ function makeFunc(params, body) {
     let c = compileNode(body)
     return function*(input, conf, args) {
         let origArgs = conf.userFuncArgs
-        conf.userFuncArgs = {}
+        conf.userFuncArgs = Object.create(origArgs)
         for (let i = 0; i < params.length; i++) {
             let pn = params[i]
             let pv = args[i]
@@ -1380,11 +1380,34 @@ const functions = {
         for (let o of f.apply(input, conf))
             yield o.hasOwnProperty(input)
     },
+    'to_entries/0': function*(input, conf) {
+        let t = nameType(input)
+        if (t == 'array') {
+            let ret = []
+            for (let i = 0; i < input.length; i++)
+                ret.push({key: i, value: input[i]})
+            yield ret
+        } else if (t == 'object')
+            yield Object.entries(input).map(a => ({key: a[0], value: a[1]}))
+        else
+            throw 'cannot make entries from ' + t
+    },
+    'from_entries/0': function*(input, conf) {
+        let t = nameType(input)
+        if (t == 'array') {
+            let obj = {}
+            for (let {key, value} of input)
+                obj[key] = value
+            yield obj
+        } else
+            throw 'cannot use entries from ' + t
+    },
 }
 
 defineShorthandFunction('map', 'f', '[.[] | f]')
 defineShorthandFunction('map_values', 'f', '.[] |= f')
 defineShorthandFunction('del', 'p', 'p |= empty')
+defineShorthandFunction('with_entries', 'w', 'to_entries | map(w) | from_entries')
 
 const jq = {compile, prettyPrint}
 // Delete these two lines for a non-module version (CORS-safe)

@@ -35,8 +35,10 @@ support.
 - [x] Addition, subtraction, multiplication, division, and modulo,
   including the overloaded type operations.
 - [x] Named functions
-    - [ ] Built-in functions
+    - Built-in functions
         - [x] tostring, empty, path, select, length, keys, has, in
+        - [x] map, map_values, del
+        - [x] to_entries, from_entries, with_entries
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions
