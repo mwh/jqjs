@@ -1594,6 +1594,28 @@ const functions = {
         for (let o of f.apply(input, conf))
             if (o.hasOwnProperty(input)) yield []
     },
+    'contains/1': function*(input, conf, args) {
+        let f = args[0]
+        let t = nameType(input)
+        for (let o of f.apply(input, conf)) {
+            let ot = nameType(o)
+            if (t != ot) {
+                throw t + ' and ' + ot + ' cannot have their containment checked'
+            } else
+                yield containsHelper(input, o)
+        }
+    },
+    'inside/1': function*(input, conf, args) {
+        let f = args[0]
+        let t = nameType(input)
+        for (let o of f.apply(input, conf)) {
+            let ot = nameType(o)
+            if (t != ot) {
+                throw t + ' and ' + ot + ' cannot have their containment checked'
+            } else
+                yield containsHelper(o, input)
+        }
+    },
     'to_entries/0': function*(input, conf) {
         let t = nameType(input)
         if (t == 'array') {
@@ -1752,6 +1774,47 @@ const functions = {
         for (let s of args[0].apply(input, conf))
             yield a.join(s)
     },
+}
+
+// Implements the containment algorithm, returning whether haystack
+// contains needle:
+// * Strings are contained if they are substrings
+// * Arrays if each element is contained in some element of other
+// * Object if values contained by values in matching key
+// * All others, if they are equal.
+// This helper function is necessary because the recursive case
+// has different error behaviour to the user-exposed function.
+function containsHelper(haystack, needle) {
+    let haystackType = nameType(haystack)
+    let needleType = nameType(needle)
+    if (haystackType != needleType) {
+        return false
+    } else if (haystackType == 'string') {
+        return (haystack.indexOf(needle) != -1)
+    } else if (haystackType == 'array') {
+        for (let b of needle) {
+            let found = false
+            for (let a of haystack) {
+                if (containsHelper(a, b)) {
+                    found = true
+                    break
+                }
+            }
+            if (!found)
+                return false
+        }
+        return true
+    } else if (haystackType == 'object') {
+        for (let k of Object.keys(needle)) {
+            if (!haystack.hasOwnProperty(k))
+                return false
+            if (!containsHelper(haystack[k], needle[k]))
+                return false
+        }
+        return true
+    } else {
+        return haystack === needle
+    }
 }
 
 defineShorthandFunction('map', 'f', '[.[] | f]')
