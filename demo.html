@@ -67,7 +67,7 @@
                 </div>
             </div>
             <div id="credits-line">
-                <a href="https://github.com/mwh/jqjs">jqjs</a> demo page
+                <a href="https://github.com/mwh/jqjs">jqjs</a> demo page | <a id="flink" href="#">permalink</a>
             </div>
         </div>
         <!-- Chrome does not allow anything requiring CORS validation
@@ -76,6 +76,11 @@
              page is loaded from file:// and a diagnostic message is
              displayed with some suggestions to fix it (below). -->
         <script type="module" onerror="document.getElementById('corsError').style.display = ''">
+            if (window.location.hash) {
+                let parts = window.location.hash.split('#')
+                document.getElementById('jq-program').value = decodeURI(parts[1])
+                document.getElementById('jq-input').value = jq.prettyPrint(JSON.parse(atob(parts[2])))
+            }
             import jq from './jq.js'
             window.jq = jq
             function refresh() {
@@ -124,6 +129,7 @@
                             op.value += jq.prettyPrint(i) + '\n'
                     }
                     document.getElementById('error-line').innerHTML = '&nbsp;'
+                    document.getElementById('flink').href = window.location.href.replace(/#.*/, '') + '#' + encodeURI(prog) + '#' + btoa(JSON.stringify(JSON.parse(document.getElementById('jq-input').value)))
                 } catch (e) {
                     document.getElementById('error-line').textContent = e
                 }
