@@ -1077,12 +1077,28 @@ class ObjectNode extends ParseNode {
     }
     * apply(input, conf) {
         let obj = {}
+        let values = {}
+        let keys = []
         for (let {key, value} of this.fields) {
-            for (let k of key.apply(input, conf))
+            for (let k of key.apply(input, conf)) {
+                keys.push(k)
+                values[k] = []
                 for (let v of value.apply(input, conf))
-                    obj[k] = v
+                    values[k].push(v)
+            }
         }
-        yield obj
+        yield* this.helper(keys, values, 0, {})
+    }
+    * helper(keys, values, startAt, obj) {
+        if (startAt >= keys.length) {
+            yield Object.assign({}, obj)
+            return
+        }
+        let k = keys[startAt]
+        for (let v of values[k]) {
+            obj[k] = v
+            yield* this.helper(keys, values, startAt + 1, obj)
+        }
     }
 }
 class RecursiveDescent extends ParseNode {
