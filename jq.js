@@ -47,7 +47,7 @@ function prettyPrint(val, indent='', step='    ', LF='\n') {
         return val
     if (val === null) {
         return 'null'
-    } else if (val.constructor == Array) {
+    } else if (val instanceof Array) {
         let ret = '['
         let first = true
         for (let v of Object.values(val)) {
@@ -732,7 +732,7 @@ function nameType(o) {
     if (typeof o == 'number') return 'number'
     if (typeof o == 'string') return 'string'
     if (typeof o == 'boolean') return 'boolean'
-    if (o.constructor == Array) return 'array'
+    if (o instanceof Array) return 'array'
     if (typeof o == 'object') return 'object'
 }
 
