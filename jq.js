@@ -34,7 +34,7 @@ function compileNode(prog) {
 }
 
 function isAlpha(c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_'
 }
 
 function isDigit(c) {
