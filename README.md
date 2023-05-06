@@ -53,7 +53,7 @@ support.
 - [x] Equality checks: `==`, `!=`
 - [x] Comparisons: `<`, `>`, `<=`, `>=`
     - [x] Correct sorting order for unequal types (`null < 7`, `[] < {}`)
-- [ ] Conditionals: `if A then B else C`
+- [x] Conditionals: `if A then B elif C then D else E end`
 - [x] Alternative operator: `//`
 - [ ] Try-catch: `try EXP catch EXP`
   - [x] Error Suppression operator `?`

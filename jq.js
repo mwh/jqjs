@@ -1,5 +1,5 @@
 // jqjs - jq JSON query language in JavaScript
-// Copyright (C) 2018 Michael Homer
+// Copyright (C) 2018-2023 Michael Homer
 /*
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -185,6 +185,7 @@ function defineShorthandFunction(name, params, body) {
 // right-square, left-paren, right-paren, pipe, comma,
 // identifier, colon, left-brace, right-brace, semicolon, at,
 // variable, as, reduce, foreach, def, import, include, question
+// if, then, else, end, elif
 function tokenise(str, startAt=0, parenDepth) {
     let ret = []
     function error(msg) {
@@ -337,7 +338,9 @@ function tokenise(str, startAt=0, parenDepth) {
             while (isAlpha(str[i]) || isDigit(str[i]) || str[i] == '_')
                 tok += str[i++]
             if (tok == 'as' || tok == 'reduce' || tok == 'foreach'
-                    || tok == 'import' || tok == 'include' || tok == 'def') {
+                    || tok == 'import' || tok == 'include' || tok == 'def'
+                    || tok == 'if' || tok == 'then' || tok == 'else'
+                    || tok == 'end' || tok == 'elif') {
                 ret.push({type: tok})
             } else {
                 ret.push({type: 'identifier', value: tok})
@@ -489,13 +492,13 @@ function parse(tokens, startAt=0, until='none') {
             let op = t.op
             let stream = [lhs, t]
             let r = parse(tokens, i + 1, ['op', 'comma', 'pipe', 'right-paren',
-                'right-brace', 'right-square'])
+                'right-brace', 'right-square'].concat(until))
             i = r.i
             stream.push(r.node)
             while (i < tokens.length && tokens[i].type == 'op') {
                 stream.push(tokens[i])
                 let r = parse(tokens, i + 1, ['op', 'comma', 'pipe',
-                    'right-paren', 'right-brace', 'right-square'])
+                    'right-paren', 'right-brace', 'right-square'].concat(until))
                 i = r.i
                 stream.push(r.node)
             }
@@ -505,7 +508,7 @@ function parse(tokens, startAt=0, until='none') {
         } else if (t.type == 'pipe-equals') {
             let lhs = makeFilterNode(ret)
             let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
-                'right-brace', 'right-square'])
+                'right-brace', 'right-square'].concat(until))
             i = r.i
             let rhs = r.node
             ret = [new UpdateAssignment(lhs, rhs)]
@@ -513,7 +516,7 @@ function parse(tokens, startAt=0, until='none') {
         } else if (t.type == 'op-equals') {
             let lhs = makeFilterNode(ret)
             let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
-                'right-brace', 'right-square'])
+                'right-brace', 'right-square'].concat(until))
             i = r.i
             let rhs = r.node
             rhs = shuntingYard([new IdentityNode(), {type: 'op', op: t.op},
@@ -544,6 +547,25 @@ function parse(tokens, startAt=0, until='none') {
         // Variable reference
         } else if (t.type == 'variable') {
             ret.push(new VariableReference(t.name))
+        } else if (t.type == 'if') {
+            let conds = []
+            let trueExprs = []
+            let falseExpr = null
+            while (tokens[i] && tokens[i].type == 'if' || tokens[i].type == 'elif') {
+                let cond = parse(tokens, i + 1, ['then'])
+                let trueExpr = parse(tokens, cond.i + 1, ['else', 'elif', 'end'])
+                i = trueExpr.i
+                conds.push(cond.node)
+                trueExprs.push(trueExpr.node)
+            }
+            if (tokens[i] && tokens[i].type == 'else') {
+                let elseCase = parse(tokens, i + 1, ['end'])
+                i = elseCase.i
+                falseExpr = elseCase.node
+            }
+            if (!tokens[i] || tokens[i].type != 'end')
+                throw 'expected end'
+            ret.push(new IfNode(conds, trueExprs, falseExpr))
         } else {
             throw 'could not handle token ' + t.type
         }
@@ -771,6 +793,7 @@ function nameType(o) {
 //   VariableBinding, ... as $x (not the pipe)
 //   VariableReference, $x
 //   ReduceNode, reduce .[] as $x (0; . + $x)
+//   IfNode, if a then b elif c then d else e end
 class ParseNode {}
 class FilterNode extends ParseNode {
     constructor(nodes) {
@@ -1467,6 +1490,30 @@ class ReduceNode extends ParseNode {
             delete conf.variables[this.name]
             yield accum
         }
+    }
+}
+class IfNode extends ParseNode {
+    constructor(conditions, thens, elseBranch) {
+        super()
+        this.conditions = conditions
+        this.thens = thens
+        this.elseBranch = elseBranch
+    }
+    * apply(input, conf) {
+        for (let [c,t] of zip(this.conditions, this.thens)) {
+            for (let cond of c.apply(input, conf)) {
+                if (cond) {
+                    for (let o of t.apply(input, conf))
+                        yield o
+                    return
+                }
+            }
+        }
+        if (this.elseBranch) {
+            yield* this.elseBranch.apply(input, conf)
+            return
+        }
+        yield input
     }
 }
 
