@@ -193,6 +193,7 @@ function tokenise(str, startAt=0, parenDepth) {
     }
     let i
     toplevel: for (i = startAt; i < str.length; i++) {
+        let location = i
         let c = str[i]
         if (c == ' ')
             continue;
@@ -225,7 +226,7 @@ function tokenise(str, startAt=0, parenDepth) {
                     else if (q == '(') {
                         // Interpolation
                         let r = tokenise(str, i + 1, 0)
-                        ret.push({type: 'quote-interp', value: tok})
+                        ret.push({type: 'quote-interp', value: tok, location})
                         tok = ''
                         ret = ret.concat(r.tokens)
                         i = r.i
@@ -235,7 +236,7 @@ function tokenise(str, startAt=0, parenDepth) {
                 } else if (str[i] == '\\') {
                     escaped = true
                 } else if (str[i] == st) {
-                    ret.push({type: 'quote', value: tok})
+                    ret.push({type: 'quote', value: tok, location})
                     continue toplevel
                 } else {
                     escaped = false
@@ -247,7 +248,7 @@ function tokenise(str, startAt=0, parenDepth) {
             let tok = ''
             while (isDigit(str[i]) || str[i] == '.')
                 tok += str[i++]
-            ret.push({type: 'number', value: Number.parseFloat(tok)})
+            ret.push({type: 'number', value: Number.parseFloat(tok), location})
                 i--
         } else if (c == '.') {
             let d = str[i+1]
@@ -256,16 +257,16 @@ function tokenise(str, startAt=0, parenDepth) {
                 let tok = ''
                 while (isAlpha(str[i]) || isDigit(str[i]))
                     tok += str[i++]
-                ret.push({type: 'identifier-index', value: tok})
+                ret.push({type: 'identifier-index', value: tok, location})
                 i--
             } else if (d == '[') {
                 i++
-                ret.push({type: 'dot-square'})
+                ret.push({type: 'dot-square', location})
             } else if (d == '.') {
                 i++
-                ret.push({type: 'dot-dot'})
+                ret.push({type: 'dot-dot', location})
             } else {
-                ret.push({type: 'dot'})
+                ret.push({type: 'dot', location})
             }
         } else if (c == '$') {
             let d = str[i+1]
@@ -275,39 +276,39 @@ function tokenise(str, startAt=0, parenDepth) {
                 tok += str[i]
                 i++
             }
-            ret.push({type: 'variable', name: tok})
+            ret.push({type: 'variable', name: tok, location})
             i--
         } else if (c == '[') {
-            ret.push({type: 'left-square'})
+            ret.push({type: 'left-square', location})
         } else if (c == ']') {
-            ret.push({type: 'right-square'})
+            ret.push({type: 'right-square', location})
         } else if (c == '(') {
-            ret.push({type: 'left-paren'})
+            ret.push({type: 'left-paren', location})
             parenDepth++
         } else if (c == ')') {
-            ret.push({type: 'right-paren'})
+            ret.push({type: 'right-paren', location})
             parenDepth--
             if (parenDepth < 0)
                 return {tokens: ret, i}
         } else if (c == '{') {
-            ret.push({type: 'left-brace'})
+            ret.push({type: 'left-brace', location})
         } else if (c == '}') {
-            ret.push({type: 'right-brace'})
+            ret.push({type: 'right-brace', location})
         } else if (c == ',') {
-            ret.push({type: 'comma'})
+            ret.push({type: 'comma', location})
         } else if (c == ';') {
-            ret.push({type: 'semicolon'})
+            ret.push({type: 'semicolon', location})
         } else if (c == '@') {
-            ret.push({type: 'at'})
+            ret.push({type: 'at', location})
         } else if (c == '?') {
-            ret.push({type: 'question'})
+            ret.push({type: 'question', location})
         } else if (c == '|') {
             let d = str[i+1]
             if (d == '=') {
-                ret.push({type: 'pipe-equals'})
+                ret.push({type: 'pipe-equals', location})
                 i++
             } else
-                ret.push({type: 'pipe'})
+                ret.push({type: 'pipe', location})
         // Infix operators
         } else if (c == '+' || c == '*' || c == '-' || c == '/' || c == '%'
                 || c == '<' || c == '>') {
@@ -317,9 +318,9 @@ function tokenise(str, startAt=0, parenDepth) {
             }
             if (str[i+1] == '=') {
                 if (c == '<' || c == '>')
-                    ret.push({type: 'op', op: c + '='})
+                    ret.push({type: 'op', op: c + '=', location})
                 else
-                    ret.push({type: 'op-equals', op: c})
+                    ret.push({type: 'op-equals', op: c, location})
                 i++
             } else
                 ret.push({type: 'op', op: c})
@@ -327,12 +328,12 @@ function tokenise(str, startAt=0, parenDepth) {
             if (str[i + 1] != '=')
                 throw 'plain assignment = is not supported'
             i++
-            ret.push({type: 'op', op: '=='})
+            ret.push({type: 'op', op: '==', location})
         } else if (c == '!') {
             if (str[i + 1] != '=')
-                throw 'unexpected !'
+                throw 'unexpected ! at ' + location
             i++
-            ret.push({type: 'op', op: '!='})
+            ret.push({type: 'op', op: '!=', location})
         } else if (isAlpha(c)) {
             let tok = ''
             while (isAlpha(str[i]) || isDigit(str[i]) || str[i] == '_')
@@ -341,16 +342,24 @@ function tokenise(str, startAt=0, parenDepth) {
                     || tok == 'import' || tok == 'include' || tok == 'def'
                     || tok == 'if' || tok == 'then' || tok == 'else'
                     || tok == 'end' || tok == 'elif') {
-                ret.push({type: tok})
+                ret.push({type: tok, location})
             } else {
-                ret.push({type: 'identifier', value: tok})
+                ret.push({type: 'identifier', value: tok, location})
             }
             i--
         } else if (c == ':') {
-            ret.push({type: 'colon'})
+            ret.push({type: 'colon', location})
         }
     }
+    ret.push({type: '<end-of-program>', location: i})
     return {tokens: ret, i}
+}
+
+function describeLocation(token) {
+    if (token) {
+        return token.location
+    }
+    return '<end>'
 }
 
 // Parse a token stream by recursive descent.
@@ -438,7 +447,8 @@ function parse(tokens, startAt=0, until='none') {
         } else if (t.type == 'at') {
             let n = tokens[++i]
             if (!n || n.type != 'identifier')
-                throw 'expected identifier after @'
+                throw 'expected identifier after @ at ' +
+                    describeLocation(n)
             let fmt = n.value
             if (!formats[fmt])
                 throw 'not a valid format: ' + fmt
@@ -479,7 +489,8 @@ function parse(tokens, startAt=0, until='none') {
         } else if (t.type == 'question') {
             let p = ret.pop()
             if (!p)
-                throw 'unexpected ? without preceding filter'
+                throw 'unexpected ? without preceding filter at ' +
+                    describeLocation(t)
             ret.push(new ErrorSuppression(p))
         // Infix operators
         } else if (t.type == 'op') {
@@ -492,13 +503,13 @@ function parse(tokens, startAt=0, until='none') {
             let op = t.op
             let stream = [lhs, t]
             let r = parse(tokens, i + 1, ['op', 'comma', 'pipe', 'right-paren',
-                'right-brace', 'right-square'].concat(until))
+                'right-brace', 'right-square', '<end-of-program>'].concat(until))
             i = r.i
             stream.push(r.node)
             while (i < tokens.length && tokens[i].type == 'op') {
                 stream.push(tokens[i])
                 let r = parse(tokens, i + 1, ['op', 'comma', 'pipe',
-                    'right-paren', 'right-brace', 'right-square'].concat(until))
+                    'right-paren', 'right-brace', 'right-square', '<end-of-program>'].concat(until))
                 i = r.i
                 stream.push(r.node)
             }
@@ -508,7 +519,7 @@ function parse(tokens, startAt=0, until='none') {
         } else if (t.type == 'pipe-equals') {
             let lhs = makeFilterNode(ret)
             let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
-                'right-brace', 'right-square'].concat(until))
+                'right-brace', 'right-square', '<end-of-program>'].concat(until))
             i = r.i
             let rhs = r.node
             ret = [new UpdateAssignment(lhs, rhs)]
@@ -516,7 +527,7 @@ function parse(tokens, startAt=0, until='none') {
         } else if (t.type == 'op-equals') {
             let lhs = makeFilterNode(ret)
             let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
-                'right-brace', 'right-square'].concat(until))
+                'right-brace', 'right-square', '<end-of-program>'].concat(until))
             i = r.i
             let rhs = r.node
             rhs = shuntingYard([new IdentityNode(), {type: 'op', op: t.op},
@@ -531,7 +542,8 @@ function parse(tokens, startAt=0, until='none') {
             let name = tokens[i].name
             i++
             if (tokens[i].type != 'left-paren')
-                throw 'expected left-paren in reduce'
+                throw 'expected left-paren in reduce at ' +
+                    describeLocation(tokens[i])
             r = parse(tokens, i + 1, ['semicolon'])
             i = r.i
             let init = r.node
@@ -547,13 +559,22 @@ function parse(tokens, startAt=0, until='none') {
         // Variable reference
         } else if (t.type == 'variable') {
             ret.push(new VariableReference(t.name))
+        // Conditional if-then-(elif-then)*-else?-end
         } else if (t.type == 'if') {
             let conds = []
             let trueExprs = []
             let falseExpr = null
-            while (tokens[i] && tokens[i].type == 'if' || tokens[i].type == 'elif') {
+            while (tokens[i] && (tokens[i].type == 'if' || tokens[i].type == 'elif')) {
                 let cond = parse(tokens, i + 1, ['then'])
+                if (!tokens[cond.i] || tokens[cond.i].type != 'then')
+                    throw 'expected then at ' +
+                        describeLocation(tokens[cond.i]) +
+                        ', from ' + tokens[i].type + ' at ' + tokens[i].location
                 let trueExpr = parse(tokens, cond.i + 1, ['else', 'elif', 'end'])
+                if (trueExpr.i == cond.i + 1)
+                    throw 'expected expression after then at ' +
+                        describeLocation(tokens[cond.i + 1]) + ', not ' +
+                        tokens[cond.i + 1].type
                 i = trueExpr.i
                 conds.push(cond.node)
                 trueExprs.push(trueExpr.node)
@@ -564,10 +585,12 @@ function parse(tokens, startAt=0, until='none') {
                 falseExpr = elseCase.node
             }
             if (!tokens[i] || tokens[i].type != 'end')
-                throw 'expected end'
+                throw 'expected end at ' + describeLocation(tokens[i]) + ' from if at ' + t.location
             ret.push(new IfNode(conds, trueExprs, falseExpr))
+        } else if (t.type == '<end-of-program>' && until == 'none') {
+            break
         } else {
-            throw 'could not handle token ' + t.type
+            throw 'could not handle token ' + t.type + ' at ' + describeLocation(t) + (until != 'none' ? ', expected ' + until.join('/') : '')
         }
         t = tokens[++i]
     }
@@ -673,7 +696,8 @@ function parseObject(tokens, startAt=0) {
                 })
                 i--
             } else {
-                throw 'unexpected ' + tokens[i].type + ', expected colon'
+                throw 'unexpected ' + tokens[i].type + ', expected colon at ' +
+                    describeLocation(tokens[i])
             }
         } else if (tokens[i].type == 'left-paren') {
             // computed key: (.x | .y) : val
@@ -688,10 +712,13 @@ function parseObject(tokens, startAt=0) {
                 })
                 i--
             } else {
-                throw 'unexpected ' + tokens[i].type + ', expected colon'
+                throw 'unexpected ' + tokens[i].type + ', expected colon at ' +
+                    describeLocation(tokens[i])
             }
         } else {
-            throw 'unexpected ' + tokens[i].type + ' in object'
+            throw 'unexpected ' + tokens[i].type + ' at ' +
+                describeLocation(tokens[i]) + ' in object at ' +
+                describeLocation(tokens[startAt - 1])
         }
         i++
         // Consume a comma after a field
