@@ -1644,13 +1644,13 @@ const functions = {
     'select/1': function*(input, conf, args) {
         let selector = args[0]
         for (let b of selector.apply(input, conf))
-            if (b)
+            if (b !== false && b !== null)
                 yield input
     },
     'select/1-paths': function*(input, conf, args) {
         let selector = args[0]
         for (let b of selector.apply(input, conf))
-            if (b)
+            if (b !== false && b !== null)
                 yield []
     },
     'length/0': function*(input) {
