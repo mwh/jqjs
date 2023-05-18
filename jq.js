@@ -869,7 +869,6 @@ class IndexNode extends ParseNode {
                 if (typeof i == 'number' && i < 0 && nameType(l) == 'array')
                     yield l[l.length + i]
                 else
-                    yield l[i]
                     yield typeof l[i] == 'undefined' ? null : l[i]
             }
         }
