@@ -1443,7 +1443,7 @@ class FormatNode extends ParseNode {
         this.string = quote
     }
     * apply(input, conf) {
-        if (!this.string)
+        if (typeof this.string === 'undefined')
             return yield formats[this.name](input)
         yield* this.string.applyEscape(input, formats[this.name], conf)
     }
