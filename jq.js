@@ -821,7 +821,11 @@ function nameType(o) {
 //   VariableReference, $x
 //   ReduceNode, reduce .[] as $x (0; . + $x)
 //   IfNode, if a then b elif c then d else e end
-class ParseNode {}
+class ParseNode {
+    toString() {
+        return '<' + this.constructor.name + '>'
+    }
+}
 class FilterNode extends ParseNode {
     constructor(nodes) {
         super()
@@ -848,6 +852,9 @@ class FilterNode extends ParseNode {
                 yield v.concat(w)
             }
         }
+    }
+    toString() {
+        return (this.source ? this.source.toString() : '') + (this.filter ? this.filter.toString() : '')
     }
 }
 class IndexNode extends ParseNode {
@@ -878,6 +885,9 @@ class IndexNode extends ParseNode {
             for (let a of this.index.apply(input, conf))
                 yield l.concat([a])
     }
+    toString() {
+        return this.lhs.toString() + '[' + this.index.toString() + ']'
+    }
 }
 class SliceNode extends ParseNode {
     constructor(lhs, from, to) {
@@ -901,6 +911,9 @@ class SliceNode extends ParseNode {
             for (let a of this.from.apply(input, conf))
                 for (let b of this.to.apply(input, conf))
                     yield l.concat([{start:a, end:b}])
+    }
+    toString() {
+        return this.lhs.toString() + '[' + this.from.toString() + ':' + this.to.toString() + ']'
     }
 }
 class GenericIndex extends ParseNode {
@@ -932,6 +945,9 @@ class IdentifierIndex extends GenericIndex {
     constructor(v) {
         super(new StringNode(v))
     }
+    toString() {
+        return '.' + this.index.value
+    }
 }
 class GenericSlice extends ParseNode {
     constructor(fr, to) {
@@ -954,6 +970,9 @@ class GenericSlice extends ParseNode {
             for (let r of this.to.apply(input, conf))
                 yield [{start: l, end: r}]
     }
+    toString() {
+        return '.[' + this.from.toString() + ':' + this.to.toString() + ']'
+    }
 }
 class IdentityNode extends ParseNode {
     constructor() {
@@ -964,6 +983,9 @@ class IdentityNode extends ParseNode {
     }
     * paths(input, conf) {
         yield []
+    }
+    toString() {
+        return '.'
     }
 }
 class ValueNode extends ParseNode {
@@ -976,6 +998,9 @@ class ValueNode extends ParseNode {
     }
     * paths(input, conf) {
         yield this.value
+    }
+    toString() {
+        return JSON.stringify(this.value)
     }
 }
 class StringNode extends ValueNode {
@@ -1002,15 +1027,30 @@ class StringLiteral extends ParseNode {
             }
         }
     }
+    toString() {
+        let s = ''
+        for (let i = 0; i < this.strings.length; i++) {
+            s += this.strings[i].replace('\\', '\\\\').replace('"', '\\"')
+            if (this.interpolations[i])
+                s += '\\(' + this.interpolations[i].toString() + ')'
+        }
+        return '"' + s + '"'
+    }
 }
 class NumberNode extends ValueNode {
     constructor(v) {
         super(v)
     }
+    toString() {
+        return this.value.toString()
+    }
 }
 class BooleanNode extends ValueNode {
     constructor(v) {
         super(v)
+    }
+    toString() {
+        return this.value ? 'true' : 'false'
     }
 }
 class SpecificValueIterator extends ParseNode {
@@ -1045,6 +1085,9 @@ class SpecificValueIterator extends ParseNode {
             v2 = bb.next()
         }
     }
+    toString() {
+        return this.source.toString() + '[]'
+    }
 }
 class GenericValueIterator extends ParseNode {
     constructor() {
@@ -1064,6 +1107,9 @@ class GenericValueIterator extends ParseNode {
             for (let o of Object.keys(input))
                 yield [o]
     }
+    toString() {
+        return '.[]'
+    }
 }
 class CommaNode extends ParseNode {
     constructor(branches) {
@@ -1078,6 +1124,9 @@ class CommaNode extends ParseNode {
         for (let b of this.branches)
             yield* b.paths(input, conf)
     }
+    toString() {
+        return this.branches.join(', ')
+    }
 }
 class ArrayNode extends ParseNode {
     constructor(body) {
@@ -1087,12 +1136,18 @@ class ArrayNode extends ParseNode {
     * apply(input, conf) {
         yield Array.from(this.body.apply(input, conf))
     }
+    toString() {
+        return '[' + this.body + ']'
+    }
 }
 class PipeNode extends ParseNode {
     constructor(lhs, rhs) {
         super()
         this.lhs = lhs
         this.rhs = rhs
+    }
+    toString() {
+        return `${this.lhs} | ${this.rhs}`
     }
     * apply(input, conf) {
         for (let v of this.lhs.apply(input, conf))
@@ -1149,6 +1204,9 @@ class ObjectNode extends ParseNode {
             yield* this.helper(keys, values, startAt + 1, obj)
         }
     }
+    toString() {
+        return '{' + this.fields.map(({key, value}) => key.toString() + ': ' + value.toString()).join(', ') + '}'
+    }
 }
 class RecursiveDescent extends ParseNode {
     constructor() {
@@ -1176,6 +1234,9 @@ class RecursiveDescent extends ParseNode {
         else if (t == 'object')
             for (let [k,v] of Object.entries(s))
                 yield* this.recursePaths(v, prefix.concat([k]))
+    }
+    toString() {
+        return '..'
     }
 }
 class OperatorNode extends ParseNode {
@@ -1208,6 +1269,9 @@ class AdditionOperator extends OperatorNode {
         if (lt == 'object' && rt == 'object')
             return Object.assign(Object.assign({}, l), r)
         throw 'type mismatch in +:' + lt + ' and ' + rt + ' cannot be added'
+    }
+    toString() {
+        return this.l + ' + ' + this.r
     }
 }
 class MultiplicationOperator extends OperatorNode {
@@ -1244,6 +1308,9 @@ class MultiplicationOperator extends OperatorNode {
         }
         return l
     }
+    toString() {
+        return this.l + ' * ' + this.r
+    }
 }
 class SubtractionOperator extends OperatorNode {
     constructor(l, r) {
@@ -1258,6 +1325,9 @@ class SubtractionOperator extends OperatorNode {
             return l.filter(x => r.indexOf(x) == -1)
         throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be subtracted'
     }
+    toString() {
+        return this.l + ' - ' + this.r
+    }
 }
 class DivisionOperator extends OperatorNode {
     constructor(l, r) {
@@ -1270,6 +1340,9 @@ class DivisionOperator extends OperatorNode {
             return l.split(r)
         throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided'
     }
+    toString() {
+        return this.l + ' / ' + this.r
+    }
 }
 class ModuloOperator extends OperatorNode {
     constructor(l, r) {
@@ -1280,6 +1353,9 @@ class ModuloOperator extends OperatorNode {
             return l % r
         throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided (remainder)'
     }
+    toString() {
+        return this.l + ' % ' + this.r
+    }
 }
 class LessThanOperator extends OperatorNode {
     constructor(l, r) {
@@ -1287,6 +1363,9 @@ class LessThanOperator extends OperatorNode {
     }
     combine(l, r, lt, rt) {
         return compareValues(l, r) < 0
+    }
+    toString() {
+        return this.l + ' < ' + this.r
     }
 }
 class GreaterThanOperator extends OperatorNode {
@@ -1296,6 +1375,9 @@ class GreaterThanOperator extends OperatorNode {
     combine(l, r, lt, rt) {
         return compareValues(l, r) > 0
     }
+    toString() {
+        return this.l + ' > ' + this.r
+    }
 }
 class LessEqualsOperator extends OperatorNode {
     constructor(l, r) {
@@ -1304,6 +1386,9 @@ class LessEqualsOperator extends OperatorNode {
     combine(l, r, lt, rt) {
         return compareValues(l, r) <= 0
     }
+    toString() {
+        return this.l + ' <= ' + this.r
+    }
 }
 class GreaterEqualsOperator extends OperatorNode {
     constructor(l, r) {
@@ -1311,6 +1396,9 @@ class GreaterEqualsOperator extends OperatorNode {
     }
     combine(l, r, lt, rt) {
         return compareValues(l, r) >= 0
+    }
+    toString() {
+        return this.l + ' >= ' + this.r
     }
 }
 class EqualsOperator extends OperatorNode {
@@ -1342,6 +1430,9 @@ class EqualsOperator extends OperatorNode {
         }
         return true
     }
+    toString() {
+        return this.l + ' == ' + this.r
+    }
 }
 class NotEqualsOperator extends EqualsOperator {
     constructor(l, r) {
@@ -1349,6 +1440,9 @@ class NotEqualsOperator extends EqualsOperator {
     }
     combine(l, r, lt, rt) {
         return !super.combine(l, r, lt, rt)
+    }
+    toString() {
+        return this.l + ' != ' + this.r
     }
 }
 class AlternativeOperator extends ParseNode {
@@ -1365,6 +1459,9 @@ class AlternativeOperator extends ParseNode {
         }
         if (!found)
             yield* this.rhs.apply(input, conf)
+    }
+    toString() {
+        return this.l + ' // ' + this.r
     }
 }
 class UpdateAssignment extends ParseNode {
@@ -1405,6 +1502,9 @@ class UpdateAssignment extends ParseNode {
             delete o[last]
         return obj
     }
+    toString() {
+        return this.l + ' |= ' + this.r
+    }
 }
 class FunctionCall extends ParseNode {
     constructor(fname, args) {
@@ -1435,6 +1535,12 @@ class FunctionCall extends ParseNode {
             throw 'no paths for ' + this.name
         return func(input, conf, this.args)
     }
+    toString() {
+        if (this.args.length == 0)
+            return this.name.replace(/\/.*$/, '')
+        else
+            return this.name.replace(/\/.*$/, '') + '(' + this.args.join('; ') + ')'
+    }
 }
 class FormatNode extends ParseNode {
     constructor(fname, quote) {
@@ -1446,6 +1552,12 @@ class FormatNode extends ParseNode {
         if (typeof this.string === 'undefined')
             return yield formats[this.name](input)
         yield* this.string.applyEscape(input, formats[this.name], conf)
+    }
+    toString() {
+        if (this.string)
+            return '@' + this.name + ' ' + this.string
+        else
+            return '@' + this.name
     }
 }
 class ErrorSuppression extends ParseNode {
@@ -1470,6 +1582,9 @@ class ErrorSuppression extends ParseNode {
         } catch {
         }
     }
+    toString() {
+        return this.inner + '?'
+    }
 }
 class VariableBinding extends ParseNode {
     constructor(lhs, name) {
@@ -1484,6 +1599,9 @@ class VariableBinding extends ParseNode {
         }
         delete conf.variables[this.name]
     }
+    toString() {
+        return this.value + ' as $' + this.name
+    }
 }
 class VariableReference extends ParseNode {
     constructor(name) {
@@ -1492,6 +1610,9 @@ class VariableReference extends ParseNode {
     }
     * apply(input, conf) {
         yield conf.variables[this.name]
+    }
+    toString() {
+        return '$' + this.name
     }
 }
 class ReduceNode extends ParseNode {
@@ -1517,6 +1638,9 @@ class ReduceNode extends ParseNode {
             yield accum
         }
     }
+    toString() {
+        return 'reduce ' + this.generator + ' as $' + this.name + '(' + this.init + '; ' + this.expr + ')'
+    }
 }
 class IfNode extends ParseNode {
     constructor(conditions, thens, elseBranch) {
@@ -1540,6 +1664,15 @@ class IfNode extends ParseNode {
             return
         }
         yield input
+    }
+    toString() {
+        let s = ''
+        for (let [c,t] of zip(this.conditions, this.thens))
+            s += 'if ' + c + ' then ' + t + ' el'
+        if (this.elseBranch) {
+            return s + 'se ' + this.elseBranch + ' end'
+        }
+        return s.slice(0, -2) + 'end'
     }
 }
 
