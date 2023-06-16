@@ -22,11 +22,26 @@
 
 function compile(prog) {
     let filter = parse(tokenise(prog).tokens)
-    return input => filter.node.apply(input, {
+    const ret = input => filter.node.apply(input, {
         userFuncs: {},
         userFuncArgs: {},
         variables: {}
     })
+    ret.filter = filter
+    ret.trace = (input) => {
+        let dest = []
+        filter.node.trace(input, {
+            userFuncs: {},
+            userFuncArgs: {},
+            variables: {}
+        }, dest)
+        return {
+            node: null,
+            output: input,
+            next: dest,
+        }
+    }
+    return ret
 }
 
 function compileNode(prog) {
@@ -774,6 +789,37 @@ function shuntingYard(stream) {
     return stack[0]
 }
 
+function trace_helper(input, conf, dest, rest) {
+    let filter = rest[0]
+    for (let v of filter.apply(input, conf)) {
+        let next = []
+        dest.push({
+            node: filter,
+            output: v,
+            next,
+            variables: JSON.parse(JSON.stringify(conf.variables)),
+        })
+        if (rest.length > 1) {
+            trace_helper(v, conf, next, rest.slice(1))
+        }
+    }
+}
+
+function sourced_trace_helper(input, conf, dest, rest) {
+    let forward = []
+    let src = this
+    while (src.source) {
+        if (src.filter) {
+            forward.unshift(src.filter)
+            src = src.source
+        } else {
+            src = src.source
+        }
+    }
+    forward.unshift(src)
+    trace_helper(input, conf, dest, forward)
+}
+
 // Convert a value to a consistent type name, addressing the issue
 // that arrays are objects.
 function nameType(o) {
@@ -822,6 +868,15 @@ function nameType(o) {
 //   ReduceNode, reduce .[] as $x (0; . + $x)
 //   IfNode, if a then b elif c then d else e end
 class ParseNode {
+    trace(input, conf, dest) {
+        for (let v of this.apply(input, conf)) {
+            dest.push({
+                node: this,
+                output: v,
+                next: [],
+            })
+        }
+    }
     toString() {
         return '<' + this.constructor.name + '>'
     }
@@ -853,6 +908,7 @@ class FilterNode extends ParseNode {
             }
         }
     }
+    trace = sourced_trace_helper
     toString() {
         return (this.source ? this.source.toString() : '') + (this.filter ? this.filter.toString() : '')
     }
@@ -1057,6 +1113,7 @@ class SpecificValueIterator extends ParseNode {
     constructor(source) {
         super()
         this.source = source
+        this.filter = new GenericValueIterator()
     }
     * apply(input, conf) {
         for (let o of this.source.apply(input, conf))
@@ -1088,6 +1145,7 @@ class SpecificValueIterator extends ParseNode {
     toString() {
         return this.source.toString() + '[]'
     }
+    trace = sourced_trace_helper
 }
 class GenericValueIterator extends ParseNode {
     constructor() {
@@ -1145,6 +1203,7 @@ class PipeNode extends ParseNode {
         super()
         this.lhs = lhs
         this.rhs = rhs
+        this.isPipe = true
     }
     toString() {
         return `${this.lhs} | ${this.rhs}`
@@ -1171,6 +1230,22 @@ class PipeNode extends ParseNode {
             yield [v1.value, v2.value]
             v1 = aa.next()
             v2 = bb.next()
+        }
+    }
+    trace(input, conf, dest) {
+        for (let v of this.lhs.apply(input, conf)) {
+            let next = []
+            let more = {}
+            if (this.lhs instanceof VariableBinding)
+                more.variableValue = conf.variables[this.lhs.name]
+            dest.push({
+                node: this.lhs,
+                output: v,
+                next,
+                variables: JSON.parse(JSON.stringify(conf.variables)),
+                ...more
+            })
+            this.rhs.trace(v, conf, next)
         }
     }
 }
@@ -1249,6 +1324,34 @@ class OperatorNode extends ParseNode {
         for (let rr of this.r.apply(input, conf))
             for (let ll of this.l.apply(input, conf))
                 yield this.combine(ll, rr, nameType(ll), nameType(rr))
+    }
+    trace(input, conf, dest) {
+        for (let v of this.l.apply(input, conf)) {
+            let next = []
+            dest.push({
+                node: this.l,
+                output: v,
+                next,
+                subsidiary: 'left'
+            })
+            for (let v2 of this.r.apply(input, conf)) {
+                let next2 = []
+                next.push({
+                    node: this.r,
+                    output: v2,
+                    next: next2,
+                    subsidiary: 'right'
+                })
+                for (let v3 of this.apply(input, conf)) {
+                    let next3 = []
+                    next2.push({
+                        node: this,
+                        output: v3,
+                        next: next3,
+                    })
+                }
+            }
+        }
     }
 }
 class AdditionOperator extends OperatorNode {
@@ -2052,5 +2155,5 @@ defineShorthandFunction('nulls', '', 'select(type == "null")')
 
 const jq = {compile, prettyPrint}
 // Delete these two lines for a non-module version (CORS-safe)
-export { compile, prettyPrint, compileNode }
+export { compile, prettyPrint, compileNode, formats }
 export default jq
