@@ -190,6 +190,7 @@ function makeFunc(params, body, pathFunc=false) {
 function defineShorthandFunction(name, params, body) {
     let fname = name + '/' + params.length
     functions[fname] = makeFunc(params, body)
+    functions[fname].params = Array.prototype.map.call(params, label => ({label, mode: 'defer'}))
     functions[fname + '-paths'] = makeFunc(params, body, true)
 }
 
@@ -860,7 +861,7 @@ function nameType(o) {
 //   NotEqualsOperator, a != b
 //   AlternativeOperator, a // b
 //   UpdateAssignment, .x.y |= .z
-//   FunctionCall, fname(arg1, arg2)
+//   FunctionCall, fname(arg1; arg2)
 //   FormatNode, @format, @format "a\(...)"
 //   ErrorSuppression, foo?
 //   VariableBinding, ... as $x (not the pipe)
@@ -1638,6 +1639,48 @@ class FunctionCall extends ParseNode {
             throw 'no paths for ' + this.name
         return func(input, conf, this.args)
     }
+    trace(input, conf, dest) {
+        if (this.args.length == 1 && !conf.userFuncArgs[this.name] && this.ordinary) {
+            let func = functions[this.name];
+            if (func.params && func.params.length > 0) {
+                if (func.params[0].mode == 'defer') {
+                    return super.trace(input, conf, dest)
+                }
+            }
+            for (let a1 of this.args[0].apply(input, conf)) {
+                let next = []
+                let paramLabel = 'arg1'
+                if (func.params && func.params.length > 0 && func.params[0].label)
+                    paramLabel = func.params[0].label;
+                dest.push({
+                    node: this.args[0],
+                    output: a1,
+                    next,
+                    subsidiary: paramLabel
+                })
+                for (let result of func(input, conf, [new ValueYielder(a1)])) {
+                    let next2 = []
+                    next.push({
+                        node: this,
+                        output: result,
+                        next: next2,
+                    })
+                }
+            }    
+        } else {
+            return super.trace(input, conf, dest)
+        }
+    }
+    get ordinary() {
+        let func = functions[this.name];
+        if (!func) return true;
+        if (func.params && func.params.length > 0) {
+            if (func.params[0].mode == 'defer') {
+                return false;
+            }
+        }
+        return true;
+    }
     toString() {
         if (this.args.length == 0)
             return this.name.replace(/\/.*$/, '')
@@ -1779,6 +1822,19 @@ class IfNode extends ParseNode {
     }
 }
 
+class ValueYielder {
+    /* This is used internally for evaluating functions at specific values. */
+    constructor(v) {
+        this.value = v
+    }
+    * apply(input, conf) {
+        yield this.value
+    }
+    toString() {
+        return this.value.toString()
+    }
+}
+
 const formats = {
     text(v) {
         if (typeof v == 'string')
@@ -1872,16 +1928,18 @@ const functions = {
     },
     'empty/0': function*(input) {
     },
-    'path/1': function*(input, conf, args) {
+    'path/1': Object.assign(function*(input, conf, args) {
         let f = args[0]
         yield* f.paths(input, conf)
-    },
-    'select/1': function*(input, conf, args) {
+    }, {params: [{mode: 'defer'}]}),
+    'select/1': Object.assign(function*(input, conf, args) {
         let selector = args[0]
         for (let b of selector.apply(input, conf))
             if (b !== false && b !== null)
                 yield input
-    },
+    }, {
+        params: [{label: 'predicate', mode: 'eval'}]
+    }),
     'select/1-paths': function*(input, conf, args) {
         let selector = args[0]
         for (let b of selector.apply(input, conf))
@@ -1899,27 +1957,27 @@ const functions = {
     'keys/0': function*(input) {
         yield* Object.keys(input).sort()
     },
-    'has/1': function*(input, conf, args) {
+    'has/1': Object.assign(function*(input, conf, args) {
         let f = args[0]
         for (let k of f.apply(input, conf))
             yield input.hasOwnProperty(k)
-    },
+    }, {params: [{label: 'key'}]}),
     'has/1-paths': function*(input, conf, args) {
         let f = args[0]
         for (let k of f.apply(input, conf))
             if (input.hasOwnProperty(k)) yield []
     },
-    'in/1': function*(input, conf, args) {
+    'in/1': Object.assign(function*(input, conf, args) {
         let f = args[0]
         for (let o of f.apply(input, conf))
             yield o.hasOwnProperty(input)
-    },
+    }, {params: [{label: 'object'}]}),
     'in/1-paths': function*(input, conf, args) {
         let f = args[0]
         for (let o of f.apply(input, conf))
             if (o.hasOwnProperty(input)) yield []
     },
-    'contains/1': function*(input, conf, args) {
+    'contains/1': Object.assign(function*(input, conf, args) {
         let f = args[0]
         let t = nameType(input)
         for (let o of f.apply(input, conf)) {
@@ -1929,8 +1987,8 @@ const functions = {
             } else
                 yield containsHelper(input, o)
         }
-    },
-    'inside/1': function*(input, conf, args) {
+    }, {params: [{label: 'element'}]}),
+    'inside/1': Object.assign(function*(input, conf, args) {
         let f = args[0]
         let t = nameType(input)
         for (let o of f.apply(input, conf)) {
@@ -1940,7 +1998,7 @@ const functions = {
             } else
                 yield containsHelper(o, input)
         }
-    },
+    }, {params: [{label: 'container'}]}),
     'to_entries/0': function*(input, conf) {
         let t = nameType(input)
         if (t == 'array') {
@@ -1966,11 +2024,11 @@ const functions = {
     'type/0': function*(input) {
         yield nameType(input)
     },
-    'range/1': function*(input, conf, args) {
+    'range/1': Object.assign(function*(input, conf, args) {
         for (let m of args[0].apply(input, conf))
             for (let i = 0; i < m; i++)
                 yield i
-    },
+    }, {params: [{mode: 'defer'}]}),
     'range/2': function*(input, conf, args) {
         for (let min of args[0].apply(input, conf))
             for (let max of args[1].apply(input, conf))
@@ -1991,14 +2049,14 @@ const functions = {
             if (b) return yield true
         yield false
     },
-    'any/1': function*(input, conf, args) {
+    'any/1': Object.assign(function*(input, conf, args) {
         if (nameType(input) != 'array')
             throw 'any/1 requires array as input, not ' + nameType(input)
         for (let v of input)
             for (let b of args[0].apply(v, conf))
                 if (b) return yield true
         yield false
-    },
+    }, {params: [{mode: 'defer'}]}),
     'any/2': function*(input, conf, args) {
         let gen = args[0]
         let cond = args[1]
@@ -2014,14 +2072,14 @@ const functions = {
             if (!b) return yield false
         yield true
     },
-    'all/1': function*(input, conf, args) {
+    'all/1': Object.assign(function*(input, conf, args) {
         if (nameType(input) != 'array')
             throw 'all/1 requires array as input, not ' + nameType(input)
         for (let v of input)
             for (let b of args[0].apply(v, conf))
                 if (!b) return yield false
         yield true
-    },
+    }, {params: [{mode: 'defer'}]}),
     'all/2': function*(input, conf, args) {
         let gen = args[0]
         let cond = args[1]
@@ -2051,7 +2109,7 @@ const functions = {
         let r = Array.from(input)
         yield r.sort(compareValues)
     },
-    'sort_by/1': function*(input, conf, args) {
+    'sort_by/1': Object.assign(function*(input, conf, args) {
         if (nameType(input) != 'array')
             throw 'can only sort arrays, not ' + nameType(input)
         let key = args[0]
@@ -2061,7 +2119,7 @@ const functions = {
         }))
         r.sort((a, b) => compareValues(a.key, b.key))
         yield r.map(a => a.value)
-    },
+    }, {params: [{mode: 'defer'}]}),
     'explode/0': function*(input, conf) {
         if (nameType(input) != 'string')
             throw 'can only explode string, not ' + nameType(input)
@@ -2079,14 +2137,14 @@ const functions = {
             throw 'can only implode array, not ' + nameType(input)
         yield input.map(x => String.fromCodePoint(x)).join('')
     },
-    'split/1': function*(input, conf, args) {
+    'split/1': Object.assign(function*(input, conf, args) {
         if (nameType(input) != 'string')
             throw 'can only split string, not ' + nameType(input)
         for (let s of args[0].apply(input, conf)) {
             yield input.split(s)
         }
-    },
-    'join/1': function*(input, conf, args) {
+    }, {params: [{label: 'separator'}]}),
+    'join/1': Object.assign(function*(input, conf, args) {
         if (nameType(input) != 'array')
             throw 'can only join array, not ' + nameType(input)
         let a = input.map(x => {
@@ -2098,7 +2156,7 @@ const functions = {
         })
         for (let s of args[0].apply(input, conf))
             yield a.join(s)
-    },
+    }, {params: [{label: 'delimiter'}]}),
 }
 
 // Implements the containment algorithm, returning whether haystack
