@@ -1341,16 +1341,15 @@ class OperatorNode extends ParseNode {
                     node: this.r,
                     output: v2,
                     next: next2,
-                    subsidiary: 'right'
+                    subsidiary: 'right',
                 })
-                for (let v3 of this.apply(input, conf)) {
-                    let next3 = []
-                    next2.push({
-                        node: this,
-                        output: v3,
-                        next: next3,
-                    })
-                }
+                let result = this.combine(v, v2, nameType(v), nameType(v2))
+                let next3 = []
+                next2.push({
+                    node: this,
+                    output: result,
+                    next: next3,
+                })
             }
         }
     }
