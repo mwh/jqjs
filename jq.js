@@ -2104,8 +2104,8 @@ const functions = {
     },
     'reverse/0': function*(input) {
         if (nameType(input) != 'array')
-            throw 'can only inverse arrays, not ' + nameType(input)
-        yield input.reverse()
+            throw 'can only reverse arrays, not ' + nameType(input)
+        yield input.toReversed()
     },
     'sort/0': function*(input, conf) {
         if (nameType(input) != 'array')
