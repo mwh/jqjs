@@ -2102,6 +2102,11 @@ const functions = {
     'tonumber/0': function*(input) {
         yield Number.parseFloat(input)
     },
+    'reverse/0': function*(input) {
+        if (nameType(input) != 'array')
+            throw 'can only reverse arrays, not ' + nameType(input)
+        yield input.toReversed()
+    },
     'sort/0': function*(input, conf) {
         if (nameType(input) != 'array')
             throw 'can only sort arrays, not ' + nameType(input)
