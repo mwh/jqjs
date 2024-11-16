@@ -1927,6 +1927,9 @@ const functions = {
     },
     'empty/0': function*(input) {
     },
+    'fromjson/0': function*(input) {
+        yield JSON.parse(input)
+    },
     'path/1': Object.assign(function*(input, conf, args) {
         let f = args[0]
         yield* f.paths(input, conf)
