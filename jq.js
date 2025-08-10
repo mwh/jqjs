@@ -731,6 +731,21 @@ function parseObject(tokens, startAt=0) {
                 throw 'unexpected ' + tokens[i].type + ', expected colon at ' +
                     describeLocation(tokens[i])
             }
+        } else if (tokens[i].type == 'variable') {
+            // variable key: $x : val
+            let varTok = tokens[i++]
+            if (tokens[i].type == 'colon') {
+                let r = parse(tokens, i + 1, ['comma', 'right-brace'])
+                i = r.i
+                fields.push({
+                    key: new VariableReference(varTok.name),
+                    value: r.node,
+                })
+                i--
+            } else {
+                throw 'unexpected ' + tokens[i].type + ', expected colon at ' +
+                    describeLocation(tokens[i])
+            }
         } else {
             throw 'unexpected ' + tokens[i].type + ' at ' +
                 describeLocation(tokens[i]) + ' in object at ' +
