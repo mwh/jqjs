@@ -1,6 +1,6 @@
 {
   "name": "@michaelhomer/jqjs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Michael Homer <mwh@ecs.vuw.ac.nz>",
   "license": "MIT",
   "description": "Pure-JavaScript implementation of the jq JSON query language",
