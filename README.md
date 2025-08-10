@@ -41,13 +41,14 @@ support.
         - [x] empty, select, arrays, objects, booleans, numbers, strings, nulls
         - [x] map, map_values, sort, sort_by, explode, implode, split, join
         - [x] add, add/1
-        - [x] to_entries, from_entries, with_entries
+        - [x] to_entries, from_entries, with_entries, walk/1
         - [x] range/1, range/2, range/3
         - [x] any/0, any/1, any/2, all/0, all/1, all/2
         - [x] contains, inside
         - [x] path, getpath/1, setpath/2, delpaths/1, pick/1
         - [x] trim/0, ltrim/0, rtrim/0, trimstr/1, ltrimstr/1, rtrimstr/1
         - [x] first, last, nth/1, first/1, last/1, nth/2, limit/2, skip/2
+        - [x] sub/1
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions
@@ -64,7 +65,7 @@ support.
 - [x] Alternative operator: `//`
 - [ ] Try-catch: `try EXP catch EXP`
   - [x] Error Suppression operator `?`
-- [ ] Regular expressions
+- [ ] Regular expressions (partial)
 - [x] Variable/Symbolic Binding Operator `... as $identifier | ...`
 - [x] Reduce: `reduce .[] as $item (0; . + $item)`
 - [ ] foreach: `foreach .[] as $item (...;...;...)`

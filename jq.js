@@ -2397,6 +2397,21 @@ const functions = {
     'walk/1': Object.assign(function*(input, conf, args) {
         yield* walk(input, conf, args[0])
     }, {params: [{label: 'generator'}]}),
+    'sub/2': Object.assign(function*(input, conf, args) {
+        for (let regexp of args[0].apply(input, conf)) {
+            let re = new RegExp(regexp);
+            let match = re.exec(input);
+            if (match) {
+                let before = input.slice(0, match.index);
+                let after = input.slice(match.index + match[0].length);
+                for (let replacement of args[1].apply(match.groups, conf)) {
+                    yield before + replacement + after;
+                }
+            } else {
+                yield input;
+            }
+        }
+    }, {params: [{label: 'regex'}, {label: 'tostring'}]}),
 }
 
 function* walk(input, conf, expr) {
