@@ -1867,7 +1867,12 @@ const formats = {
     uri(v) {
         if (typeof v != 'string')
             v = prettyPrint(v, '', '', '')
-        return escape(v)
+        return encodeURIComponent(v)
+    },
+    urid(v) {
+        if (typeof v != 'string')
+            v = prettyPrint(v, '', '', '')
+        return decodeURIComponent(v)
     },
     csv(v) {
         if (nameType(v) != 'array')
@@ -2135,6 +2140,12 @@ const functions = {
             yield true;
         else
             throw `cannot convert ${nameType(input)} (${prettyPrint(input)}) to boolean`;
+    },
+    'tojson/0': function*(input) {
+        yield JSON.stringify(input);
+    },
+    'fromjson/0': function*(input) {
+        yield JSON.parse(input);
     },
     'reverse/0': function*(input) {
         if (nameType(input) != 'array')

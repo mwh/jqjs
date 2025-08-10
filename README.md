@@ -36,7 +36,8 @@ support.
   including the overloaded type operations.
 - [x] Named functions
     - Built-in functions
-        - [x] tostring, tonumber, toboolean, length, keys, has, in, type, del
+        - [x] tostring, tonumber, toboolean, tojson, fromjson
+        - [x] length, keys, has, in, type, del
         - [x] empty, select, arrays, objects, booleans, numbers, strings, nulls
         - [x] map, map_values, sort, sort_by, explode, implode, split, join
         - [x] add, add/1
@@ -50,6 +51,8 @@ support.
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions
+    - [ ] Date functions
+    - [ ] SQL-style operators
 - [x] String interpolation: `\(foo)`
 - [x] Format strings and escaping: `@text`, `@json`, `@html`, `@uri`, `@csv`,
   `@tsv`, `@sh`, `@base64`, `@base64d`
