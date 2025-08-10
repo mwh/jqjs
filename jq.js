@@ -2397,6 +2397,16 @@ const functions = {
     'walk/1': Object.assign(function*(input, conf, args) {
         yield* walk(input, conf, args[0])
     }, {params: [{label: 'generator'}]}),
+    'ascii_upcase/0': function*(input, conf) {
+        if (nameType(input) != 'string')
+            throw 'can only convert strings to uppercase, not ' + nameType(input)
+        yield input.replace(/./g, (x) => { if (x.charCodeAt(0) >= 97 && x.charCodeAt(0) <= 122) return x.toUpperCase(); return x; });
+    },
+    'ascii_downcase/0': function*(input, conf) {
+        if (nameType(input) != 'string')
+            throw 'can only convert strings to lowercase, not ' + nameType(input)
+        yield input.replace(/./g, (x) => { if (x.charCodeAt(0) >= 65 && x.charCodeAt(0) <= 90) return x.toLowerCase(); return x; });
+    },
     'sub/2': Object.assign(function*(input, conf, args) {
         for (let regexp of args[0].apply(input, conf)) {
             let re = new RegExp(regexp);

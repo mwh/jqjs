@@ -48,7 +48,7 @@ support.
         - [x] path, getpath/1, setpath/2, delpaths/1, pick/1
         - [x] trim/0, ltrim/0, rtrim/0, trimstr/1, ltrimstr/1, rtrimstr/1
         - [x] first, last, nth/1, first/1, last/1, nth/2, limit/2, skip/2
-        - [x] sub/1
+        - [x] sub/1, ascii_upcase/1, ascii_downcase/1
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions
