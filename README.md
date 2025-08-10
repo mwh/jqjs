@@ -36,14 +36,15 @@ support.
   including the overloaded type operations.
 - [x] Named functions
     - Built-in functions
-        - [x] tostring, tonumber, path, length, keys, has, in, type, del
+        - [x] tostring, tonumber, toboolean, length, keys, has, in, type, del
         - [x] empty, select, arrays, objects, booleans, numbers, strings, nulls
-        - [x] map, map_values, add, sort, sort_by, explode, implode, split, join
+        - [x] map, map_values, sort, sort_by, explode, implode, split, join
+        - [x] add, add/1
         - [x] to_entries, from_entries, with_entries
         - [x] range/1, range/2, range/3
         - [x] any/0, any/1, any/2, all/0, all/1, all/2
         - [x] contains, inside
-        - [x] getpath/1, setpath/2, delpaths/1, pick/1
+        - [x] path, getpath/1, setpath/2, delpaths/1, pick/1
         - [x] trim/0, ltrim/0, rtrim/0, trimstr/1, ltrimstr/1, rtrimstr/1
         - [ ] the others
     - [ ] User-defined functions

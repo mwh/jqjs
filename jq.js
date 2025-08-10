@@ -2117,8 +2117,24 @@ const functions = {
                 nameType(ret), nameType(input[i]))
         yield ret
     },
+    'add/1': Object.assign(function*(input, conf, args) {
+        let sum = null;
+        for (let addend of args[0].apply(input, conf)) {
+            sum = AdditionOperator.prototype.combine(sum, addend,
+                nameType(sum), nameType(addend))
+        }
+        yield sum
+    }, {params: [{label: 'source'}]}),
     'tonumber/0': function*(input) {
         yield Number.parseFloat(input)
+    },
+    'toboolean/0': function*(input) {
+        if (input === "false" || input === false)
+            yield false;
+        else if (input === "true" || input === true)
+            yield true;
+        else
+            throw `cannot convert ${nameType(input)} (${prettyPrint(input)}) to boolean`;
     },
     'reverse/0': function*(input) {
         if (nameType(input) != 'array')
