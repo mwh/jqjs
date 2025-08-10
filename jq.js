@@ -2393,7 +2393,29 @@ const functions = {
                 count++;
             }
         }
-    }, {params: [{label: 'n'}, {label: 'expr'}]})
+    }, {params: [{label: 'n'}, {label: 'expr'}]}),
+    'walk/1': Object.assign(function*(input, conf, args) {
+        yield* walk(input, conf, args[0])
+    }, {params: [{label: 'generator'}]}),
+}
+
+function* walk(input, conf, expr) {
+    if (nameType(input) == 'array') {
+        let arr = [];
+        for (let v of input) {
+            arr.push(...walk(v, conf, expr));
+        }
+        return yield* expr.apply(arr, conf);
+    } else if (nameType(input) == 'object') {
+        let obj = {};
+        for (let k of Object.keys(input)) {
+            for (let v of walk(input[k], conf, expr)) {
+                obj[k] = v;
+            }
+        }
+        return yield* expr.apply(obj, conf);
+    }
+    yield* expr.apply(input, conf);
 }
 
 // Implements the containment algorithm, returning whether haystack
