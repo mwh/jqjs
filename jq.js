@@ -2193,6 +2193,34 @@ const functions = {
             yield input.split(s)
         }
     }, {params: [{label: 'separator'}]}),
+    'split/2': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'string')
+            throw 'can only split string, not ' + nameType(input)
+        let flags = args[1] ? args[1].apply(input, conf).next().value : '';
+        flags = makeFlagString(flags);
+        for (let regex of args[0].apply(input, conf)) {
+            let re = new RegExp(regex, flags);
+            yield input.split(re);
+        }
+    }, {params: [{label: 'regex'}, {label: 'flags'}]}),
+    'splits/1': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'string')
+            throw 'can only split string, not ' + nameType(input)
+        for (let regex of args[0].apply(input, conf)) {
+            let re = new RegExp(regex, 'u');
+            yield* input.split(re);
+        }
+    }, {params: [{label: 'regex'}, {label: 'flags'}]}),
+    'splits/2': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'string')
+            throw 'can only split string, not ' + nameType(input)
+        let flags = args[1] ? args[1].apply(input, conf).next().value : '';
+        flags = makeFlagString(flags);
+        for (let regex of args[0].apply(input, conf)) {
+            let re = new RegExp(regex, flags);
+            yield* input.split(re);
+        }
+    }, {params: [{label: 'regex'}, {label: 'flags'}]}),
     'join/1': Object.assign(function*(input, conf, args) {
         if (nameType(input) != 'array')
             throw 'can only join array, not ' + nameType(input)
@@ -2408,20 +2436,169 @@ const functions = {
         yield input.replace(/./g, (x) => { if (x.charCodeAt(0) >= 65 && x.charCodeAt(0) <= 90) return x.toLowerCase(); return x; });
     },
     'sub/2': Object.assign(function*(input, conf, args) {
+        yield* sub(input, conf, args[0], args[1]);
+    }, {params: [{label: 'regex'}, {label: 'tostring'}]}),
+    'sub/3': Object.assign(function*(input, conf, args) {
+        let flags = args[2].apply(input, conf).next().value || '';
+        yield* sub(input, conf, args[0], args[1], flags);
+    }, {params: [{label: 'regex'}, {label: 'tostring'}, {label: 'flags'}]}),
+    'gsub/2': Object.assign(function*(input, conf, args) {
+        return yield* sub(input, conf, args[0], args[1], 'g')
+    }, {params: [{label: 'regex'}, {label: 'tostring'}]}),
+    'gsub/3': Object.assign(function*(input, conf, args) {
+        let flags = args[2].apply(input, conf).next().value || 'g';
+        yield* sub(input, conf, args[0], args[1], flags);
+    }, {params: [{label: 'regex'}, {label: 'tostring'}, {label: 'flags'}]}),
+    'test/1': Object.assign(function*(input, conf, args) {
         for (let regexp of args[0].apply(input, conf)) {
-            let re = new RegExp(regexp);
+            let re = new RegExp(regexp, "u");
+            yield re.test(input);
+        }
+    }, {params: [{label: 'regex'}]}),
+    'test/2': Object.assign(function*(input, conf, args) {
+        let flags = args[0].apply(input, conf).next().value || '';
+        for (let regexp of args[0].apply(input, conf)) {
+            let re = new RegExp(regexp, makeFlagString(flags));
+            yield re.test(input);
+        }
+    }, {params: [{label: 'regex'}, {label: 'flags'}]}),
+    'capture/1': Object.assign(function*(input, conf, args) {
+        for (let regexp of args[0].apply(input, conf)) {
+            let re = new RegExp(regexp, "u");
             let match = re.exec(input);
             if (match) {
-                let before = input.slice(0, match.index);
-                let after = input.slice(match.index + match[0].length);
-                for (let replacement of args[1].apply(match.groups, conf)) {
-                    yield before + replacement + after;
-                }
-            } else {
-                yield input;
+                yield match.groups;
             }
         }
-    }, {params: [{label: 'regex'}, {label: 'tostring'}]}),
+    }, {params: [{label: 'regex'}]}),
+    'capture/2': Object.assign(function*(input, conf, args) {
+        let flags = args[1].apply(input, conf).next().value || '';
+        flags = makeFlagString(flags);
+        for (let regexp of args[0].apply(input, conf)) {
+            let re = new RegExp(regexp, flags);
+            let match = re.exec(input);
+            if (match) {
+                yield match.groups;
+            }
+        }
+    }, {params: [{label: 'regex'}, {label: 'flags'}]}),
+    'match/1': Object.assign(function*(input, conf, args) {
+        let flags = 'u';
+        if (args[1]) {
+            flags = makeFlagString(args[1].apply(input, conf).next().value || '');
+        }
+        flags += 'd';
+        let global = flags.indexOf('g') >= 0;
+        let steps = 0;
+        for (let regexp of args[0].apply(input, conf)) {
+            let re = new RegExp(regexp, flags);
+            let match = re.exec(input);
+            while (match) {
+                let result = {
+                    offset: match.index,
+                    length: match[0].length,
+                    string: match[0],
+                    captures: []
+                };
+                for (let i = 1; i < match.length; i++) {
+                    if (!match.indices[i])
+                        continue;
+                    let name = null;
+                    if (match.indices.groups) {
+                        for (let [k,v] of Object.entries(match.indices.groups)) {
+                            if (match.indices[i][0] == v[0] && match.indices[i][1] == v[1]) {
+                                name = k;
+                                break;
+                            }
+                        }
+                    }
+                    result.captures.push({
+                        offset: match.indices[i][0],
+                        length: match[i].length,
+                        string: match[i],
+                        name: name,
+                    });
+                }
+                yield result;
+                match = re.exec(input);
+                if (steps++ > 1000 || !global)
+                    break;
+            }
+        }
+    }, {params: [{label: 'regex'}]})
+}
+
+functions['match/2'] = functions['match/1'];
+
+function* sub(input, conf, regexpExpr, replacementExpr, flags='') {
+    flags = makeFlagString(flags);
+    for (let regexp of regexpExpr.apply(input, conf)) {
+        let re = new RegExp(regexp, flags);
+        let match;
+        let before = '';
+        let lastIndex = 0;
+        let bits = [];
+        let groupCount = 0;
+        while (match = re.exec(input)) {
+            bits.push(input.slice(lastIndex, match.index))
+            bits.push(match.groups);
+            groupCount++;
+            lastIndex = match.index + match[0].length;
+            if (flags.indexOf('g') < 0)
+                break;
+        }
+        if (bits.length == 0) {
+            return yield input;
+        }
+        let finalPiece = input.slice(lastIndex);
+        console.log(bits)
+        let results = [];
+        for (let i = 0; i < bits.length; i += 2) {
+            let before = bits[i];
+            let groups = bits[i + 1];
+            let these = [];
+            results.push(these);
+            for (let replacement of replacementExpr.apply(groups, conf)) {
+                these.push(before + replacement);
+            }
+        }
+        console.log(results);
+        let index = 0;
+        while (true) {
+            let r = '';
+            let anyPresent = false;
+            for (let i = 0; i < results.length; i++) {
+                if (typeof results[i][index] !== 'undefined')
+                    anyPresent = true;
+                r += results[i][index] ?? '';
+            }
+            if (!anyPresent)
+                break;
+            r += finalPiece;
+            yield r;
+            index++;
+            if (index > 1000)
+                break;
+        }
+    }
+}
+
+function makeFlagString(flags) {
+    let flagParts = ['u'];
+    if (flags === null)
+        return 'u';
+    for (let f of flags) {
+        if (f == 'g' || f == 'i' || f == 'm' || f == 's') {
+            flagParts.push(f);
+        } else if (f == 'p') {
+            flagParts.push('s', 'm');
+        } else if (f == 'x' || f == 'l' || f == 'n') {
+            throw `jqjs does not have support for regex flag '${f}'`;
+        } else {
+            throw `Invalid flag '${f}' in regex substitution`;
+        }
+    }
+    return flagParts.join('');
 }
 
 function* walk(input, conf, expr) {

@@ -48,7 +48,9 @@ support.
         - [x] path, getpath/1, setpath/2, delpaths/1, pick/1
         - [x] trim/0, ltrim/0, rtrim/0, trimstr/1, ltrimstr/1, rtrimstr/1
         - [x] first, last, nth/1, first/1, last/1, nth/2, limit/2, skip/2
-        - [x] sub/1, ascii_upcase/1, ascii_downcase/1
+        - [x] sub/1, sub/2, gsub/1, gsub/2, test/1, test/2, split/2
+        - [x] capture/1, capture/2, match/1, match/2, splits/1, splits/2
+        - [x] ascii_upcase/1, ascii_downcase/1
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions
@@ -65,7 +67,7 @@ support.
 - [x] Alternative operator: `//`
 - [ ] Try-catch: `try EXP catch EXP`
   - [x] Error Suppression operator `?`
-- [ ] Regular expressions (partial)
+- [x] Regular expressions (uses JavaScript RegExp, so behaviour is incomplete)
 - [x] Variable/Symbolic Binding Operator `... as $identifier | ...`
 - [x] Reduce: `reduce .[] as $item (0; . + $item)`
 - [ ] foreach: `foreach .[] as $item (...;...;...)`
