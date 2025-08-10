@@ -1,5 +1,5 @@
 // jqjs - jq JSON query language in JavaScript
-// Copyright (C) 2018-2023 Michael Homer
+// Copyright (C) 2018-2025 Michael Homer
 /*
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -20,18 +20,31 @@
 * SOFTWARE.
 */
 
+
+/**
+ * Compiles a jq program string into a generator function that produces all
+ * the program's outputs given the initial input value.
+ *
+ * @param {string} prog - jq source code to compile.
+ * @returns {((input: JQValue) => Generator<JQValue, void, unknown>) & {
+ *   filter: {node: ParseNode},
+ *   ast: ParseNode,
+ *   trace: (input: any) => { node: null, output: any, next: any[] }
+ * }} A function that applies the compiled filter to input data. The returned function
+ * also has an `ast` property containing the parsed syntax tree, and a `trace` method
+ * for tracing filter execution.
+ */
 function compile(prog) {
     let filter = parse(tokenise(prog).tokens)
     const ret = input => filter.node.apply(input, {
-        userFuncs: {},
         userFuncArgs: {},
         variables: {}
     })
     ret.filter = filter
+    ret.ast = filter.node
     ret.trace = (input) => {
         let dest = []
         filter.node.trace(input, {
-            userFuncs: {},
             userFuncArgs: {},
             variables: {}
         }, dest)
@@ -383,7 +396,14 @@ function describeLocation(token) {
 // Returns {node: {*apply(input, conf)}, i}, where i is the position in the
 // token stream and node is one of the filtering nodes defined below.
 // Returns at end of stream or when a token of type until is found.
-function parse(tokens, startAt=0, until='none') {
+/**
+ * 
+ * @param {any[]} tokens 
+ * @param {number} startAt 
+ * @param {string[]} until 
+ * @returns { {node: ParseNode, i: number} }
+ */
+function parse(tokens, startAt=0, until=[]) {
     let i = startAt
     let t = tokens[i]
     let ret = []
@@ -603,10 +623,10 @@ function parse(tokens, startAt=0, until='none') {
             if (!tokens[i] || tokens[i].type != 'end')
                 throw 'expected end at ' + describeLocation(tokens[i]) + ' from if at ' + t.location
             ret.push(new IfNode(conds, trueExprs, falseExpr))
-        } else if (t.type == '<end-of-program>' && until == 'none') {
+        } else if (t.type == '<end-of-program>' && until.length == 0) {
             break
         } else {
-            throw 'could not handle token ' + t.type + ' at ' + describeLocation(t) + (until != 'none' ? ', expected ' + until.join('/') : '')
+            throw 'could not handle token ' + t.type + ' at ' + describeLocation(t) + (until.length > 0 ? ', expected ' + until.join('/') : '')
         }
         t = tokens[++i]
     }
@@ -895,6 +915,17 @@ class ParseNode {
     }
     toString() {
         return '<' + this.constructor.name + '>'
+    }
+    /**
+     * Evaluate this ParseNode at a given input value, with provided
+     * function and variable definitions.
+     * 
+     * @param {JQValue} input 
+     * @param { {variables: { [key: string]: JQValue }, userFuncArgs: { [key: string]: ParseNode } } } conf
+     * @returns {IterableIterator<JQValue>}
+     */
+    * apply(input, conf) {
+        throw 'apply not implemented for ' + this.constructor.name
     }
 }
 class FilterNode extends ParseNode {
@@ -2257,7 +2288,6 @@ const functions = {
             let obj = JSON.parse(JSON.stringify(input));
             let current = obj;
             for (let key of path.slice(0, -1)) {
-                console.log(nameType(key))
                 if (obj === null) {
                     if (nameType(key) == 'number') {
                         obj = [];
@@ -2530,6 +2560,24 @@ const functions = {
 
 functions['match/2'] = functions['match/1'];
 
+/**
+ * Implements the general string substitution operation
+ * 
+ * replacementExpr is evaluated with an input object containing
+ * keys for each named group in the expression and values for the
+ * corresponding captured substrings.
+ * 
+ * With /g, the expression will be evaluated once for each match in
+ * the string. When replacementExpr produces multiple values, the result is
+ * one output string with all of the first-produced values, then one
+ * with all of the second-produced values, and so on.
+ * 
+ * @param {any} input The input value to this pipeline step (string source)
+ * @param {any} conf Configuration object
+ * @param {any} regexpExpr A stream of strings to use as regular expressions
+ * @param {any} replacementExpr A stream to evaluate for each replacement
+ * @param {string} flags The flags to use for the regular expression
+ * */
 function* sub(input, conf, regexpExpr, replacementExpr, flags='') {
     flags = makeFlagString(flags);
     for (let regexp of regexpExpr.apply(input, conf)) {
@@ -2551,7 +2599,6 @@ function* sub(input, conf, regexpExpr, replacementExpr, flags='') {
             return yield input;
         }
         let finalPiece = input.slice(lastIndex);
-        console.log(bits)
         let results = [];
         for (let i = 0; i < bits.length; i += 2) {
             let before = bits[i];
@@ -2562,7 +2609,6 @@ function* sub(input, conf, regexpExpr, replacementExpr, flags='') {
                 these.push(before + replacement);
             }
         }
-        console.log(results);
         let index = 0;
         while (true) {
             let r = '';
@@ -2583,6 +2629,10 @@ function* sub(input, conf, regexpExpr, replacementExpr, flags='') {
     }
 }
 
+// Create a JavaScript RegExp flag string as best as possible
+// out of a jq (Oniguruma) flag string.
+// Always uses /u for whole-codepoint matching, and
+// translates other flags where there are close analogues.
 function makeFlagString(flags) {
     let flagParts = ['u'];
     if (flags === null)
@@ -2601,6 +2651,11 @@ function makeFlagString(flags) {
     return flagParts.join('');
 }
 
+// Implements the walk/1 algorithm, a depth-first post-order
+// map over a JSON structure.
+// When the provided function has multiple outputs, only the
+// first output is used when setting an object's field values,
+// but all are collected in other cases.
 function* walk(input, conf, expr) {
     if (nameType(input) == 'array') {
         let arr = [];
@@ -2673,6 +2728,14 @@ defineShorthandFunction('strings', '', 'select(type == "string")')
 defineShorthandFunction('numbers', '', 'select(type == "number")')
 defineShorthandFunction('nulls', '', 'select(type == "null")')
 defineShorthandFunction('pick', ['pathexps'], '. as $in | reduce path(pathexps) as $a (null; setpath($a; $in|getpath($a)) )')
+
+
+/**
+ * @typedef {JQPrimitive | ?JQObject | JQArray} JQValue
+ * @typedef {string | number | boolean} JQPrimitive
+ * @typedef {Object.<string, JQPrimitive>} JQObject
+ * @typedef {Array<JQValue>} JQArray
+ */
 
 const jq = {compile, prettyPrint}
 // Delete these two lines for a non-module version (CORS-safe)
