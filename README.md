@@ -11,6 +11,16 @@ program string into a generator function:
 The module also has a prettyPrint function for rendering an object to
 text.
 
+As a shorthand, the default export is itself callable in two ways:
+
+    let filter = jq('.x[].y')
+    for (let x of filter(obj)) { ... }
+
+    for (let x of jq('.x[].y', obj)) { ... }
+
+With a single argument, this is equivalent to jq.compile,
+and with two arguments it is equivalent to jq.compile(arg1)(arg2).
+
 Features
 --------
 

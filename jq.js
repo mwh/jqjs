@@ -2737,7 +2737,26 @@ defineShorthandFunction('pick', ['pathexps'], '. as $in | reduce path(pathexps) 
  * @typedef {Array<JQValue>} JQArray
  */
 
-const jq = {compile, prettyPrint}
+/**
+ * @overload
+ * @param {string} prog
+ * @returns {(input: JQValue) => IterableIterator<JQValue>}
+ *
+ * @overload
+ * @param {string} prog
+ * @param {JQValue} input
+ * @returns {IterableIterator<JQValue>}
+ */
+function combined(prog, input) {
+    let filter = compile(prog)
+    if (typeof input !== 'undefined') {
+        return filter(input)
+    } else {
+        return filter
+    }
+}
+
+const jq = Object.assign(combined, {compile, prettyPrint})
 // Delete these two lines for a non-module version (CORS-safe)
 export { compile, prettyPrint, compileNode, formats }
 export default jq
