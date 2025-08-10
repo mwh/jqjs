@@ -2258,6 +2258,57 @@ const functions = {
             yield obj;
         }
     }, {params: [{label: 'paths'}]}),
+    'ltrim/0': Object.assign(function*(input, conf) {
+        if (nameType(input) != 'string')
+            throw 'can only trim strings, not ' + nameType(input)
+        yield input.trimLeft();
+    }, {params: []}),
+    'rtrim/0': Object.assign(function*(input, conf) {
+        if (nameType(input) != 'string')
+            throw 'can only trim strings, not ' + nameType(input)
+        yield input.trimRight();
+    }, {params: []}),
+    'trim/0': Object.assign(function*(input, conf) {
+        if (nameType(input) != 'string')
+            throw 'can only trim strings, not ' + nameType(input)
+        yield input.trim();
+    }, {params: []}),
+    'trimstr/1': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'string')
+            throw 'can only trim strings, not ' + nameType(input)
+        for (let s of args[0].apply(input, conf)) {
+            let str = input;
+            if (str.startsWith(s)) {
+                str = str.slice(s.length);
+            }
+            if (str.endsWith(s)) {
+                str = str.slice(0, -s.length);
+            }
+            yield str;
+        }
+    }, {params: [{label: 'str'}]}),
+    'ltrimstr/1': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'string')
+            throw 'can only trim strings, not ' + nameType(input)
+        for (let s of args[0].apply(input, conf)) {
+            let str = input;
+            if (str.startsWith(s)) {
+                str = str.slice(s.length);
+            }
+            yield str;
+        }
+    }, {params: [{label: 'str'}]}),
+    'rtrimstr/1': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'string')
+            throw 'can only trim strings, not ' + nameType(input)
+        for (let s of args[0].apply(input, conf)) {
+            let str = input;
+            if (str.endsWith(s)) {
+                str = str.slice(0, -s.length);
+            }
+            yield str;
+        }
+    }, {params: [{label: 'str'}]}),
 }
 
 // Implements the containment algorithm, returning whether haystack

@@ -44,6 +44,7 @@ support.
         - [x] any/0, any/1, any/2, all/0, all/1, all/2
         - [x] contains, inside
         - [x] getpath/1, setpath/2, delpaths/1, pick/1
+        - [x] trim/0, ltrim/0, rtrim/0, trimstr/1, ltrimstr/1, rtrimstr/1
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions
