@@ -2179,6 +2179,85 @@ const functions = {
         for (let s of args[0].apply(input, conf))
             yield a.join(s)
     }, {params: [{label: 'delimiter'}]}),
+    'getpath/1': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'object' && nameType(input) != 'array')
+            throw 'can only get path from objects and arrays, not ' + nameType(input)
+        for (let path of args[0].apply(input, conf)) {
+            let obj = input;
+            for (let key of path) {
+                if (obj.hasOwnProperty(key)) {
+                    obj = obj[key];
+                } else {
+                    obj = null;
+                    break;
+                }
+            }
+            yield obj;
+        }
+    }, {params: [{label: 'paths'}]}),
+    'setpath/2': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'object' && nameType(input) != 'array' && nameType(input) != 'null')
+            throw 'can only set path on objects and arrays, not ' + nameType(input)
+        for (let path of args[0].apply(input, conf)) {
+            let obj = JSON.parse(JSON.stringify(input));
+            let current = obj;
+            for (let key of path.slice(0, -1)) {
+                console.log(nameType(key))
+                if (obj === null) {
+                    if (nameType(key) == 'number') {
+                        obj = [];
+                        current = obj;
+                    } else {
+                        obj = {};
+                        current = obj;
+                    }
+                } else if (!current.hasOwnProperty(key)) {
+                    if (nameType(key) == 'number')
+                        current[key] = [];
+                    else
+                        current[key] = {};
+                }
+                current = current[key];
+            }
+            for (let val of args[1].apply(input, conf)) {
+                let key = path[path.length - 1];
+                if (obj === null) {
+                    if (nameType(key) == 'number') {
+                        obj = [];
+                        current = obj;
+                    } else {
+                        obj = {};
+                        current = obj;
+                    }
+                } else if (!current.hasOwnProperty(key)) {
+                    if (nameType(key) == 'number')
+                        current = [];
+                    else
+                        current = {};
+                }
+                current[key] = val;
+            }
+            yield obj;
+        }
+    }, {params: [{label: 'paths'}, {label: 'value'}]}),
+    'delpaths/1': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'object' && nameType(input) != 'array')
+            throw 'can only delete paths from objects and arrays, not ' + nameType(input)
+        for (let paths of args[0].apply(input, conf)) {
+            let obj = JSON.parse(JSON.stringify(input));
+            for (let path of paths) {
+                let current = obj;
+                for (let key of path.slice(0, -1)) {
+                    if (!current.hasOwnProperty(key)) {
+                        current[key] = {};
+                    }
+                    current = current[key];
+                }
+                delete current[path[path.length - 1]];
+            }
+            yield obj;
+        }
+    }, {params: [{label: 'paths'}]}),
 }
 
 // Implements the containment algorithm, returning whether haystack
@@ -2232,6 +2311,7 @@ defineShorthandFunction('booleans', '', 'select(type == "boolean")')
 defineShorthandFunction('strings', '', 'select(type == "string")')
 defineShorthandFunction('numbers', '', 'select(type == "number")')
 defineShorthandFunction('nulls', '', 'select(type == "null")')
+defineShorthandFunction('pick', ['pathexps'], '. as $in | reduce path(pathexps) as $a (null; setpath($a; $in|getpath($a)) )')
 
 const jq = {compile, prettyPrint}
 // Delete these two lines for a non-module version (CORS-safe)

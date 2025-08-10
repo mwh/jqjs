@@ -43,6 +43,7 @@ support.
         - [x] range/1, range/2, range/3
         - [x] any/0, any/1, any/2, all/0, all/1, all/2
         - [x] contains, inside
+        - [x] getpath/1, setpath/2, delpaths/1, pick/1
         - [ ] the others
     - [ ] User-defined functions
     - [ ] Mathematical functions
@@ -135,7 +136,7 @@ A [demonstration of the tracing functionality][trace-demo] from the paper
 "[Branching Compositional Data Transformations in jq, Visually][paper]"
 is also available.
 
-[jq]: https://stedolan.github.io/jq/
+[jq]: https://jqlang.org/
 [demo.html]: demo.html
 [trace-demo]: https://homepages.ecs.vuw.ac.nz/~mwh/demos/paint2023/
 [paper]: https://doi.org/10.1145/3623504.3623567
