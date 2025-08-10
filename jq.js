@@ -2325,6 +2325,64 @@ const functions = {
             yield str;
         }
     }, {params: [{label: 'str'}]}),
+    'first/0': function*(input, conf) {
+        if (nameType(input) != 'array')
+            throw 'can only get first element of arrays, not ' + nameType(input)
+        if (input.length == 0) return yield null
+        yield input[0];
+    },
+    'last/0': Object.assign(function*(input, conf) {
+        if (nameType(input) != 'array')
+            throw 'can only get last element of arrays, not ' + nameType(input)
+        if (input.length == 0) return yield null
+        yield input[input.length - 1];
+    }, {params: []}),
+    'nth/1': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'array')
+            throw 'can only get nth element of arrays, not ' + nameType(input)
+        if (input.length == 0) return yield null
+        for (let n of args[0].apply(input, conf)) {
+            if (nameType(n) != 'number')
+                throw 'nth index must be a number, not ' + nameType(n)
+            if (n < 0)
+                throw 'negative indices not supported for nth'
+            yield input[n];
+        }
+    }, {params: [{label: 'index'}]}),
+    'first/1': Object.assign(function*(input, conf, args) {
+        for (let n of args[0].apply(input, conf)) {
+            return yield n;
+        }
+    }, {params: [{label: 'generator'}]}),
+    'last/1': Object.assign(function*(input, conf, args) {
+        let last = null
+        for (let n of args[0].apply(input, conf)) {
+            last = n;
+        }
+        yield last;
+    }, {params: [{label: 'generator'}]}),
+    'limit/2': Object.assign(function*(input, conf, args) {
+        for (let n of args[0].apply(input, conf)) {
+            let count = 0;
+            for (let val of args[1].apply(input, conf)) {
+                if (count >= n)
+                    break;
+                yield val;
+                count++;
+            }
+        }
+    }, {params: [{label: 'n'}, {label: 'expr'}]}),
+    'skip/2': Object.assign(function*(input, conf, args) {
+        for (let n of args[0].apply(input, conf)) {
+            let count = 0;
+            for (let val of args[1].apply(input, conf)) {
+                if (count >= n) {
+                    yield val;
+                }
+                count++;
+            }
+        }
+    }, {params: [{label: 'n'}, {label: 'expr'}]})
 }
 
 // Implements the containment algorithm, returning whether haystack
