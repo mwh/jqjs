@@ -2613,6 +2613,7 @@ function* walk(input, conf, expr) {
         for (let k of Object.keys(input)) {
             for (let v of walk(input[k], conf, expr)) {
                 obj[k] = v;
+                break;
             }
         }
         return yield* expr.apply(obj, conf);
