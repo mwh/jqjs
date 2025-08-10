@@ -68,6 +68,51 @@ support.
 - [ ] Plain assignment: `(.a,.b) = range(2)`
 - [ ] Modules with `import` and `include`
 
+
+Installing and using
+--------------------
+
+The jq.js module can be imported and used directly:
+
+    import jq from "./jqjs.js";
+
+but this library can also be installed through npm:
+
+    npm install @michaelhomer/jqjs
+
+then
+
+    import jq from "@michaelhomer/jqjs";
+    // or
+    const jq = require("@michaelhomer/jqjs");
+
+Or
+
+    npm install mwh/jqjs
+
+then
+
+    import jq from "jqjs/jq.js";
+    // or
+    const jq = require("jqjs/jq.js");
+
+After that
+
+    let func = jq.compile(".x[].y")
+
+will create a `func` function that can be given any JavaScript
+object to process, and will return an iterator producing each output
+of the jq program:
+
+    for (let v of filter({x:[{y:2}, {y:4}]}) { ... }
+
+will run the loop body with `v` holding 2, then 4, then stop.
+
+`func` also exposes the jq syntax tree (as `func.filter`) and
+a function returning a complete trace of the output of every component
+of the jq program (`func.trace({x:[{y:2}, {y:4}]})`) as nested arrays
+and objects.
+
 Performance
 -----------
 
@@ -86,6 +131,11 @@ Demonstration
 to use jqjs that lets you enter a jq program and an input JSON value and
 see the output JSON values it produces.
 
+A [demonstration of the tracing functionality][trace-demo] from the paper
+"[Branching Compositional Data Transformations in jq, Visually][paper]"
+is also available.
 
 [jq]: https://stedolan.github.io/jq/
 [demo.html]: demo.html
+[trace-demo]: https://homepages.ecs.vuw.ac.nz/~mwh/demos/paint2023/
+[paper]: https://doi.org/10.1145/3623504.3623567
