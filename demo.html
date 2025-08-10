@@ -98,6 +98,7 @@
                     document.getElementById('jq-program').
                         classList.add('error')
                     document.getElementById('error-line').textContent = e
+                    console.log(e)
                     return
                 }
                 document.getElementById('error-line').innerHTML = '&nbsp;'
@@ -132,6 +133,7 @@
                     document.getElementById('flink').href = window.location.href.replace(/#.*/, '') + '#' + encodeURI(prog) + '#' + btoa(JSON.stringify(JSON.parse(document.getElementById('jq-input').value)))
                 } catch (e) {
                     document.getElementById('error-line').textContent = e
+                    console.log(e)
                 }
             }
             document.getElementById('jq-program').addEventListener('input',

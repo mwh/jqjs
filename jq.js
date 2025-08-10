@@ -451,7 +451,7 @@ function parse(tokens, startAt=0, until='none') {
         // Recursive parenthesis case
         } else if (t.type == 'left-paren') {
             // Find the body of the brackets first
-            let r = parse(tokens, i + 1, 'right-paren')
+            let r = parse(tokens, i + 1, ['right-paren'])
             ret.push(r.node)
             i = r.i
         // Object literal
@@ -536,7 +536,7 @@ function parse(tokens, startAt=0, until='none') {
             let lhs = makeFilterNode(ret)
             let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
                 'right-brace', 'right-square', '<end-of-program>'].concat(until))
-            i = r.i
+            i = r.i - 1
             let rhs = r.node
             ret = [new UpdateAssignment(lhs, rhs)]
         // Arithmetic update-assignment
@@ -717,7 +717,7 @@ function parseObject(tokens, startAt=0) {
             }
         } else if (tokens[i].type == 'left-paren') {
             // computed key: (.x | .y) : val
-            let kr = parse(tokens, i + 1, 'right-paren')
+            let kr = parse(tokens, i + 1, ['right-paren'])
             i = kr.i + 1
             if (tokens[i].type == 'colon') {
                 let r = parse(tokens, i + 1, ['comma', 'right-brace'])
