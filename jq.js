@@ -1,5 +1,5 @@
 // jqjs - jq JSON query language in JavaScript
-// Copyright (C) 2018-2025 Michael Homer
+// Copyright (C) 2018-2026 Michael Homer
 /*
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -2199,6 +2199,35 @@ const functions = {
         }))
         r.sort((a, b) => compareValues(a.key, b.key))
         yield r.map(a => a.value)
+    }, {params: [{mode: 'defer'}]}),
+    'group_by/1': Object.assign(function*(input, conf, args) {
+        if (nameType(input) != 'array')
+            throw 'group_by/1 requires array as input, not ' + nameType(input)
+        let key = args[0]
+        // Map input items to {key, value} pairs using the provided filter
+        let r = input.map(v => ({
+            key: Array.from(key.apply(v, conf)),
+            value: v
+        }))
+        // Sort by the calculated key using jq's comparison logic
+        r.sort((a, b) => compareValues(a.key, b.key))
+        // Group adjacent items with identical keys
+        let ret = []
+        if (r.length > 0) {
+            let currentGroup = [r[0].value]
+            let currentKey = r[0].key
+            for (let i = 1; i < r.length; i++) {
+                if (compareValues(r[i].key, currentKey) === 0) {
+                    currentGroup.push(r[i].value)
+                } else {
+                    ret.push(currentGroup)
+                    currentGroup = [r[i].value]
+                    currentKey = r[i].key
+                }
+            }
+            ret.push(currentGroup)
+        }
+        yield ret
     }, {params: [{mode: 'defer'}]}),
     'explode/0': function*(input, conf) {
         if (nameType(input) != 'string')
