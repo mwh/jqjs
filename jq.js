@@ -179,10 +179,16 @@ compareValues.typeOrder = ['null', 'boolean', 'number', 'string',
 // defines the map function.
 function makeFunc(params, body, pathFunc=false) {
     let c = compileNode(body)
+    return makeUserFuncFromNode(params, c, pathFunc)
+}
+
+// Lift a node to a function
+function makeUserFuncFromNode(params, node, pathFunc=false) {
+    let c = node
     let f = (x, conf) => c.apply(x, conf)
     if (pathFunc)
         f = (x, conf) => c.paths(x, conf)
-    return function*(input, conf, args) {
+    let ret = function*(input, conf, args) {
         let origArgs = conf.userFuncArgs
         conf.userFuncArgs = Object.create(origArgs)
         for (let i = 0; i < params.length; i++) {
@@ -193,6 +199,8 @@ function makeFunc(params, body, pathFunc=false) {
         yield* f(input, conf)
         conf.userFuncArgs = origArgs
     }
+    ret.params = Array.prototype.map.call(params, label => ({label, mode: 'defer'}))
+    return ret;
 }
 
 // Define and save a function that is shorthand for a longer expression
@@ -625,6 +633,50 @@ function parse(tokens, startAt=0, until=[]) {
             if (!tokens[i] || tokens[i].type != 'end')
                 throw 'expected end at ' + describeLocation(tokens[i]) + ' from if at ' + t.location
             ret.push(new IfNode(conds, trueExprs, falseExpr))
+        } else if (t.type == 'def') {
+            let nameTok = tokens[++i];
+            let name = nameTok.value;
+            i++;
+            if (!tokens[i] || tokens[i].type != 'colon' && tokens[i].type != 'left-paren')
+                throw 'expected : or parameter list when defining function ' + nameTok.value + ' at ' + t.location
+            let params = [];
+            let varParams = [];
+            if (tokens[i].type == 'left-paren') {
+                i++;
+                while (tokens[i] && tokens[i].type != 'right-paren') {
+                    if (tokens[i].type == 'variable') { // def foo($f), translated to a pipe to that variable
+                        varParams.push({truename: '$inner' + params.length + '/0', bindname: tokens[i].name});
+                        params.push('$inner' + params.length)
+                    } else {
+                        if (tokens[i].type != 'identifier')
+                            throw 'expected identifier as parameter name in function ' + name + ' at ' + tokens[i].location
+                        params.push(tokens[i].value);
+                    }
+                    i++;
+                    if (tokens[i] && tokens[i].type == 'right-paren') {}
+                    else if (tokens[i] & tokens[i].type == 'semicolon') { i++; }
+                    else {
+                        throw 'expected ) or semicolon in parameter list of function ' + name + ' at ' + tokens[i].location
+                    }
+                }
+                if (!tokens[i] || tokens[i].type != 'right-paren')
+                    throw 'expected ) to terminate parameter list of function ' + name + ' at ' + nameTok.location;
+                i++;
+            }
+            if (!tokens[i] || tokens[i].type != 'colon')
+                throw 'expected : when defining function ' + nameTok.value + ' at ' + t.location
+
+            let {node, i: j} = parse(tokens, i + 1, ['semicolon']);
+            // If there are $var parameters, bind the arguments as single values
+            for (let vp of varParams) {
+                let lhs = new VariableBinding(new FunctionCall(vp.truename, []), vp.bindname);
+                node = new PipeNode(lhs, node);
+            }
+            let func = makeUserFuncFromNode(params, node);
+            functions[name + '/' + params.length] = func;
+            let pathFunc = makeUserFuncFromNode(params, node, true);
+            functions[name + '/' + params.length + '-paths'] = pathFunc;
+            i = j;
         } else if (t.type == '<end-of-program>' && until.length == 0) {
             break
         } else {

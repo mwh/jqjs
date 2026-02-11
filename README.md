@@ -62,7 +62,8 @@ support.
         - [x] capture/1, capture/2, match/1, match/2, splits/1, splits/2
         - [x] ascii_upcase/1, ascii_downcase/1
         - [ ] the others
-    - [ ] User-defined functions
+    - [x] User-defined functions
+      - [x] def foo: . + 1; def foo(f;g): f|g; def addvalue($f): map(. + $f);
     - [ ] Mathematical functions
     - [ ] Date functions
     - [ ] SQL-style operators
