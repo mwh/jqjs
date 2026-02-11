@@ -74,6 +74,7 @@ support.
 - [x] Comparisons: `<`, `>`, `<=`, `>=`
     - [x] Correct sorting order for unequal types (`null < 7`, `[] < {}`)
 - [x] Conditionals: `if A then B elif C then D else E end`
+- [x] Boolean operators `and`, `or`
 - [x] Alternative operator: `//`
 - [ ] Try-catch: `try EXP catch EXP`
   - [x] Error Suppression operator `?`

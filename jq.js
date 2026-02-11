@@ -372,6 +372,8 @@ function tokenise(str, startAt=0, parenDepth) {
                     || tok == 'if' || tok == 'then' || tok == 'else'
                     || tok == 'end' || tok == 'elif') {
                 ret.push({type: tok, location})
+            } else if (tok == "and" || tok == "or") {
+                ret.push({type: 'op', op: tok})
             } else {
                 ret.push({type: 'identifier', value: tok, location})
             }
@@ -784,7 +786,8 @@ function parseObject(tokens, startAt=0) {
 
 function shuntingYard(stream) {
     const prec = { '+' : 5, '-' : 5, '*' : 10, '/' : 10, '%' : 10,
-        '//' : 2, '==': 3, '!=': 3, '>': 3, '<': 3, '>=': 3, '<=': 3 }
+        '//' : 2, '==': 3, '!=': 3, '>': 3, '<': 3, '>=': 3, '<=': 3,
+        'and': 1, 'or': 0 }
     let output = []
     let operators = []
     for (let x of stream) {
@@ -811,6 +814,8 @@ function shuntingYard(stream) {
         '>': GreaterThanOperator,
         '<=': LessEqualsOperator,
         '>=': GreaterEqualsOperator,
+        'and': AndOperator,
+        'or': OrOperator,
     }
     let stack = []
     for (let o of output) {
@@ -1548,6 +1553,28 @@ class GreaterEqualsOperator extends OperatorNode {
     }
     toString() {
         return this.l + ' >= ' + this.r
+    }
+}
+class AndOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        return l !== false && l !== null && r !== false && r !== null
+    }
+    toString() {
+        return this.l + ' and ' + this.r
+    }
+}
+class OrOperator extends OperatorNode {
+    constructor(l, r) {
+        super(l, r)
+    }
+    combine(l, r, lt, rt) {
+        return (l !== false && l !== null) || (r !== false && r !== null)
+    }
+    toString() {
+        return this.l + ' and ' + this.r
     }
 }
 class EqualsOperator extends OperatorNode {
