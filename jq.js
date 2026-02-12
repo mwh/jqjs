@@ -2057,6 +2057,33 @@ const formats = {
 }
 
 const functions = {
+    'unique/0': function*(input) {
+        if (nameType(input) != 'array')
+            throw 'can only unique arrays, not ' + nameType(input)
+
+        let arr = Array.from(input).sort(compareValues)
+        let ret = []
+        for (let i = 0; i < arr.length; i++) {
+            if (i === 0 || compareValues(arr[i], arr[i-1]) !== 0) {
+                ret.push(arr[i])
+            }
+        }
+        yield ret
+    },
+    'todate/0': function*(input) {
+        let date;
+        let t = nameType(input);
+
+        if (t === 'number') {
+            date = new Date(input * 1000);
+        } else if (t === 'string') {
+            date = new Date(input);
+        } else {
+            throw 'todate/0 only takes numbers or strings, not ' + t;
+        }
+
+        yield date.toISOString();
+    },
     'tostring/0': function*(input) {
         yield formats.text(input)
     },
