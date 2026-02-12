@@ -2729,6 +2729,94 @@ const functions = {
     'builtins/0': function*(input) {
         yield Object.keys(functions);
     },
+    'isinfinite/0': function*(input) {
+        yield !Number.isFinite(input);
+    },
+    'isfinite/0': function*(input) {
+        yield Number.isFinite(input);
+    },
+    'isnan/0': function*(input) {
+        yield Number.isNaN(input);
+    },
+    'isnormal/0': function*(input) {
+        yield Number.isFinite(input) && !Number.isNaN(input);
+    },
+    'infinite/0': function*(input) {
+        yield Number.POSITIVE_INFINITY;
+    },
+    'nan/0': function*(input) {
+        yield Number.NaN;
+    },
+    'endswith/1': function*(input, conf, args) {
+        for (let v of args[0].apply(input, conf))
+            yield input.endsWith(v);
+    },
+    'startswith/1': function*(input, conf, args) {
+        for (let v of args[0].apply(input, conf))
+            yield input.startsWith(v);
+    },
+    'not/0': function*(input) {
+        yield !input;
+    },
+    'abs/0': function*(input) {
+        if (compareValues(input, 0) < 0) {
+            yield -input;
+        } else {
+            yield input;
+        }
+    },
+    'max/0': function*(input) {
+        let best = null;
+        for (let o of input) {
+            if (compareValues(o, best) > 0)
+                best = o;
+        }
+        yield best;
+    },
+    'min/0': function*(input) {
+        let best = undefined;
+        for (let o of input) {
+            if (typeof best === 'undefined')
+                best = o;
+            else if (compareValues(o, best) < 0)
+                best = o;
+        }
+        if (typeof best === 'undefined') best = null;
+        yield best;
+    },
+    'max_by/1': function*(input, conf, args) {
+        let best = null;
+        let best_by = null;
+        for (let o of input) {
+            const by = Array.from(args[0].apply(o, conf))
+            if (best === null) {
+                best = o;
+                best_by = by;
+            }
+            // later values replace earlier ones for max_by in jq
+            else if (compareValues(by, best_by) >= 0) {
+                best = o;
+                best_by = by;
+            }
+        }
+        yield best;
+    },
+    'min_by/1': function*(input, conf, args) {
+        let best = undefined;
+        let best_by = null;
+        for (let o of input) {
+            const by = Array.from(args[0].apply(o, conf))
+            if (typeof best === 'undefined') {
+                best = o;
+                best_by = by;
+            }
+            else if (compareValues(by, best_by) < 0) {
+                best = o;
+                best_by = by;
+            }
+        }
+        yield best;
+    },
 }
 
 functions['match/2'] = functions['match/1'];
@@ -2926,7 +3014,12 @@ defineShorthandFunction('objects', '', 'select(type == "object")')
 defineShorthandFunction('booleans', '', 'select(type == "boolean")')
 defineShorthandFunction('strings', '', 'select(type == "string")')
 defineShorthandFunction('numbers', '', 'select(type == "number")')
+defineShorthandFunction('normals', '', 'select(type == "number" and isnormal)')
+defineShorthandFunction('finites', '', 'select(type == "number" and isfinite)')
 defineShorthandFunction('nulls', '', 'select(type == "null")')
+defineShorthandFunction('values', '', 'select(type != "null")')
+defineShorthandFunction('iterables', '', 'select(type == "array" or type == "object")')
+defineShorthandFunction('scalars', '', 'select(type != "array" and type != "object")')
 defineShorthandFunction('pick', ['pathexps'], '. as $in | reduce path(pathexps) as $a (null; setpath($a; $in|getpath($a)) )')
 defineShorthandFunction('recurse', [], 'recurse(.[]?; true)')
 defineShorthandFunction('recurse', 'f', 'recurse(f; true)')

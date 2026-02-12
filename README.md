@@ -49,19 +49,22 @@ support.
         - [x] tostring, tonumber, toboolean, tojson, fromjson
         - [x] length, keys, has, in, type, del
         - [x] empty, select, arrays, objects, booleans, numbers, strings, nulls
+        - [x] values, iterables, scalars, normals, finites
         - [x] map, map_values, sort, sort_by, group_by, unique, unique_by
-        - [x] explode, implode, split, join, add, add/1
+        - [x] explode, implode, split, join, add, add/1, abs
         - [x] to_entries, from_entries, with_entries, walk/1
-        - [x] range/1, range/2, range/3
-        - [x] any/0, any/1, any/2, all/0, all/1, all/2
+        - [x] range/1, range/2, range/3, min, max, min_by/2, max_by/2
+        - [x] any/0, any/1, any/2, all/0, all/1, all/2, not
         - [x] contains, inside
         - [x] path, getpath/1, setpath/2, delpaths/1, pick/1
         - [x] trim/0, ltrim/0, rtrim/0, trimstr/1, ltrimstr/1, rtrimstr/1
+        - [x] startswith/1, endswith/1
         - [x] first, last, nth/1, first/1, last/1, nth/2, limit/2, skip/2
         - [x] sub/1, sub/2, gsub/1, gsub/2, test/1, test/2, split/2
         - [x] capture/1, capture/2, match/1, match/2, splits/1, splits/2
         - [x] ascii_upcase/1, ascii_downcase/1
         - [x] recurse/0, recurse/1, recurse/2, builtins
+        - [x] isfinite, isinfinite, isnormal, isnan, infinite, nan
         - [ ] the others
     - [x] User-defined functions
       - [x] def foo: . + 1; def foo(f;g): f|g; def addvalue($f): map(. + $f);
