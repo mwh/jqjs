@@ -654,7 +654,7 @@ function parse(tokens, startAt=0, until=[]) {
                     }
                     i++;
                     if (tokens[i] && tokens[i].type == 'right-paren') {}
-                    else if (tokens[i] & tokens[i].type == 'semicolon') { i++; }
+                    else if (tokens[i] && tokens[i].type == 'semicolon') { i++; }
                     else {
                         throw 'expected ) or semicolon in parameter list of function ' + name + ' at ' + tokens[i].location
                     }
@@ -2928,6 +2928,14 @@ defineShorthandFunction('pick', ['pathexps'], '. as $in | reduce path(pathexps) 
 defineShorthandFunction('recurse', [], 'recurse(.[]?; true)')
 defineShorthandFunction('recurse', 'f', 'recurse(f; true)')
 defineShorthandFunction('unique_by', 'f', 'group_by(f) | map(.[0])')
+// SQL-style operators
+defineShorthandFunction('INDEX', 'f', '[ .[] | {(f): .} ] | add')
+defineShorthandFunction('INDEX', ['stream', 'f'], '[ stream | {(f): .} ] | add')
+defineShorthandFunction('JOIN', ['idx', 'stream', 'idx_expr', 'join_expr'], 'idx as $idx | stream | idx_expr as $key | [ ., $idx[$key] ] | join_expr')
+defineShorthandFunction('JOIN', ['idx', 'stream', 'idx_expr'], 'idx as $idx | stream | [., $idx[idx_expr]]')
+defineShorthandFunction('JOIN', ['idx', 'idx_expr'], 'idx as $idx | [.[] | [., $idx[idx_expr]]]')
+defineShorthandFunction('IN', 's', 'any(s == .; .)')
+defineShorthandFunction('IN', ['source', 's'], 'any(source == s; .)')
 
 
 /**

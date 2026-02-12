@@ -25,7 +25,7 @@ Features
 --------
 
 jqjs supports *most* of the core jq language features, but lacks
-functions and some of the advanced functionality. It also uses
+some functions and some of the advanced functionality. It also uses
 JavaScript strings as backing, so does not have jq proper's Unicode
 support.
 
@@ -77,7 +77,8 @@ support.
       - [ ] fma/3
     - [ ] Date functions
       - [x] now, todate, fromdate, todateiso8601, fromdateiso8601
-    - [ ] SQL-style operators
+    - [x] SQL-style operators
+      - [x] INDEX/1, INDEX/2, JOIN/4, JOIN/3, JOIN/2, IN/1, IN/2
 - [x] String interpolation: `\(foo)`
 - [x] Format strings and escaping: `@text`, `@json`, `@html`, `@uri`, `@csv`,
   `@tsv`, `@sh`, `@base64`, `@base64d`
