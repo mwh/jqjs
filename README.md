@@ -49,7 +49,7 @@ support.
         - [x] tostring, tonumber, toboolean, tojson, fromjson
         - [x] length, keys, has, in, type, del
         - [x] empty, select, arrays, objects, booleans, numbers, strings, nulls
-        - [x] map, map_values, sort, sort_by, group_by
+        - [x] map, map_values, sort, sort_by, group_by, unique
         - [x] explode, implode, split, join, add, add/1
         - [x] to_entries, from_entries, with_entries, walk/1
         - [x] range/1, range/2, range/3
@@ -76,6 +76,7 @@ support.
       - [ ] nextafter/2, nexttoward/2, remainder/2, scalb/2, scalbln/2, yn/2
       - [ ] fma/3
     - [ ] Date functions
+      - [x] now, todate, fromdate, todateiso8601, fromdateiso8601
     - [ ] SQL-style operators
 - [x] String interpolation: `\(foo)`
 - [x] Format strings and escaping: `@text`, `@json`, `@html`, `@uri`, `@csv`,

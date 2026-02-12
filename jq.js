@@ -2076,13 +2076,26 @@ const functions = {
 
         if (t === 'number') {
             date = new Date(input * 1000);
-        } else if (t === 'string') {
+        } else {
+            throw 'todate/0 only takes numbers, not ' + t;
+        }
+        // jq does not include fractional seconds in these
+        yield date.toISOString().slice(0, -5) + 'Z';
+    },
+    'fromdateiso8601/0': function*(input) {
+        let date;
+        let t = nameType(input);
+
+        if (t === 'string') {
             date = new Date(input);
         } else {
-            throw 'todate/0 only takes numbers or strings, not ' + t;
+            throw 'fromdate/0 only takes strings, not ' + t;
         }
 
-        yield date.toISOString();
+        yield date / 1000;
+    },
+    'now/0': function*(input) {
+        yield new Date() / 1000;
     },
     'tostring/0': function*(input) {
         yield formats.text(input)
@@ -2716,6 +2729,8 @@ const functions = {
 }
 
 functions['match/2'] = functions['match/1'];
+functions['todateiso8601/0'] = functions['todate/0'];
+functions['fromdate/0'] = functions['fromdateiso8601/0'];
 
 // Define mathematical functions jq supports that are in the JavaScript Math
 // object. First, single-argument functions correspond to /0 functions on
