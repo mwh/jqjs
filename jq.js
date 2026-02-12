@@ -2726,6 +2726,9 @@ const functions = {
     'now/0': function*(input) {
         yield new Date() / 1000;
     },
+    'builtins/0': function*(input) {
+        yield Object.keys(functions);
+    },
 }
 
 functions['match/2'] = functions['match/1'];
