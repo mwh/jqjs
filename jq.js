@@ -2927,6 +2927,7 @@ defineShorthandFunction('nulls', '', 'select(type == "null")')
 defineShorthandFunction('pick', ['pathexps'], '. as $in | reduce path(pathexps) as $a (null; setpath($a; $in|getpath($a)) )')
 defineShorthandFunction('recurse', [], 'recurse(.[]?; true)')
 defineShorthandFunction('recurse', 'f', 'recurse(f; true)')
+defineShorthandFunction('unique_by', 'f', 'group_by(f) | map(.[0])')
 
 
 /**
