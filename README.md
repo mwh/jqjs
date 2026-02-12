@@ -64,7 +64,16 @@ support.
         - [ ] the others
     - [x] User-defined functions
       - [x] def foo: . + 1; def foo(f;g): f|g; def addvalue($f): map(. + $f);
-    - [ ] Mathematical functions
+    - [x] Mathematical functions (found in JavaScript Math object)
+      - [x] fabs, acos, acosh, asin, asinh, atan, atanh, cbrt, ceil, cos
+      - [x] cosh, exp, expm1, floor, log, log10, log1p, log2, round, sin
+      - [x] sinh, sqrt, tan, tanh, trunc
+      - [x] atan2/2, fmax/2, fmin/2, hypot/2, pow/2
+      - [ ] erf, erfc, exp10, exp2, fabs, gamma, j0, j1, lgamma, logb
+      - [ ] nearbyint, rint, significand, tgamma, y0, y1
+      - [ ] copysign/2, drem/2, fdim/2, fmod/2, frexp/2, jn/2, ldexp/2, modf/2
+      - [ ] nextafter/2, nexttoward/2, remainder/2, scalb/2, scalbln/2, yn/2
+      - [ ] fma/3
     - [ ] Date functions
     - [ ] SQL-style operators
 - [x] String interpolation: `\(foo)`

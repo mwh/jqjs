@@ -2668,6 +2668,31 @@ const functions = {
 
 functions['match/2'] = functions['match/1'];
 
+// Define mathematical functions jq supports that are in the JavaScript Math
+// object. First, single-argument functions correspond to /0 functions on
+// their input.
+for (let mf of [ 'acos', 'acosh', 'asin', 'asinh', 'atan', 'atanh', 'cbrt', 'ceil', 'cos', 'cosh', 'erf', 'erfc', 'exp', 'exp10', 'exp2', 'expm1', 'fabs', 'floor', 'gamma', 'j0', 'j1', 'lgamma', 'log', 'log10', 'log1p', 'log2', 'logb', 'nearbyint', 'rint', 'round', 'significand', 'sin', 'sinh', 'sqrt', 'tan', 'tanh', 'tgamma', 'trunc', 'y0', 'y1']) {
+    if (mf in Math) {
+        functions[mf + '/0'] = function*(input) {
+            yield Math[mf](input)
+        }
+    }
+}
+functions['fabs/0'] = function*(input) { yield Math.abs(input); }
+
+// Two-argument functions correspond to /2 functions that ignore their input.
+for (let mf of ['atan2', 'copysign', 'drem', 'fdim', 'fmax', 'fmin', 'fmod', 'frexp', 'hypot', 'jn', 'ldexp', 'modf', 'nextafter', 'nexttoward', 'pow', 'remainder', 'scalb', 'scalbln', 'yn']) {
+    let mathName = mf;
+    if (mf.startsWith('f') && !(mf in Math)) mathName = mf.substring(1);
+    if (mathName in Math) {
+        functions[mf + '/2'] = function*(input, conf, args) {
+            for (let a1 of args[0].apply(input, conf))
+                for (let a2 of args[1].apply(input, conf))
+                    yield Math[mathName](a1, a2);
+        }
+    }
+}
+
 /**
  * Implements the general string substitution operation
  * 
