@@ -2057,46 +2057,6 @@ const formats = {
 }
 
 const functions = {
-    'unique/0': function*(input) {
-        if (nameType(input) != 'array')
-            throw 'can only unique arrays, not ' + nameType(input)
-
-        let arr = Array.from(input).sort(compareValues)
-        let ret = []
-        for (let i = 0; i < arr.length; i++) {
-            if (i === 0 || compareValues(arr[i], arr[i-1]) !== 0) {
-                ret.push(arr[i])
-            }
-        }
-        yield ret
-    },
-    'todate/0': function*(input) {
-        let date;
-        let t = nameType(input);
-
-        if (t === 'number') {
-            date = new Date(input * 1000);
-        } else {
-            throw 'todate/0 only takes numbers, not ' + t;
-        }
-        // jq does not include fractional seconds in these
-        yield date.toISOString().slice(0, -5) + 'Z';
-    },
-    'fromdateiso8601/0': function*(input) {
-        let date;
-        let t = nameType(input);
-
-        if (t === 'string') {
-            date = new Date(input);
-        } else {
-            throw 'fromdate/0 only takes strings, not ' + t;
-        }
-
-        yield date / 1000;
-    },
-    'now/0': function*(input) {
-        yield new Date() / 1000;
-    },
     'tostring/0': function*(input) {
         yield formats.text(input)
     },
@@ -2725,6 +2685,46 @@ const functions = {
                 }
             }
         }
+    },
+    'unique/0': function*(input) {
+        if (nameType(input) != 'array')
+            throw 'can only unique arrays, not ' + nameType(input)
+
+        let arr = Array.from(input).sort(compareValues)
+        let ret = []
+        for (let i = 0; i < arr.length; i++) {
+            if (i === 0 || compareValues(arr[i], arr[i-1]) !== 0) {
+                ret.push(arr[i])
+            }
+        }
+        yield ret
+    },
+    'todate/0': function*(input) {
+        let date;
+        let t = nameType(input);
+
+        if (t === 'number') {
+            date = new Date(input * 1000);
+        } else {
+            throw 'todate/0 only takes numbers, not ' + t;
+        }
+        // jq does not include fractional seconds in these
+        yield date.toISOString().slice(0, -5) + 'Z';
+    },
+    'fromdateiso8601/0': function*(input) {
+        let date;
+        let t = nameType(input);
+
+        if (t === 'string') {
+            date = new Date(input);
+        } else {
+            throw 'fromdate/0 only takes strings, not ' + t;
+        }
+
+        yield date / 1000;
+    },
+    'now/0': function*(input) {
+        yield new Date() / 1000;
     },
 }
 
