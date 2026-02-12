@@ -1220,8 +1220,11 @@ class SpecificValueIterator extends ParseNode {
         this.filter = new GenericValueIterator()
     }
     * apply(input, conf) {
-        for (let o of this.source.apply(input, conf))
+        for (let o of this.source.apply(input, conf)) {
+            if (!['array', 'object'].includes(nameType(o)))
+                throw 'cannot iterate over ' + nameType(o)
             yield* Object.values(o)
+        }
     }
     * paths(input, conf) {
         for (let [p, v] of this.zip(this.source.paths(input, conf),
@@ -1256,6 +1259,8 @@ class GenericValueIterator extends ParseNode {
         super()
     }
     * apply(input, conf) {
+        if (!['array', 'object'].includes(nameType(input)))
+            throw 'cannot iterate over ' + nameType(input)
         if (nameType(input) == 'array')
             yield* input
         else
@@ -2663,7 +2668,24 @@ const functions = {
                     break;
             }
         }
-    }, {params: [{label: 'regex'}]})
+    }, {params: [{label: 'regex'}]}),
+    'recurse/2': function*(input, conf, args) {
+        let gen = args[0];
+        let cond = args[1];
+        yield input;
+        let results = Array.from(gen.apply(input, conf));
+        let stepCount = 0;
+        while (results.length) {
+            if (stepCount++ > 100000) break;
+            let item = results.shift();
+            for (let r of cond.apply(item, conf)) {
+                if (r !== false && r !== null) {
+                    yield item;
+                    results.unshift(...gen.apply(item, conf));
+                }
+            }
+        }
+    },
 }
 
 functions['match/2'] = functions['match/1'];
@@ -2861,6 +2883,8 @@ defineShorthandFunction('strings', '', 'select(type == "string")')
 defineShorthandFunction('numbers', '', 'select(type == "number")')
 defineShorthandFunction('nulls', '', 'select(type == "null")')
 defineShorthandFunction('pick', ['pathexps'], '. as $in | reduce path(pathexps) as $a (null; setpath($a; $in|getpath($a)) )')
+defineShorthandFunction('recurse', [], 'recurse(.[]?; true)')
+defineShorthandFunction('recurse', 'f', 'recurse(f; true)')
 
 
 /**

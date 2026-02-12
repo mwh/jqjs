@@ -61,6 +61,7 @@ support.
         - [x] sub/1, sub/2, gsub/1, gsub/2, test/1, test/2, split/2
         - [x] capture/1, capture/2, match/1, match/2, splits/1, splits/2
         - [x] ascii_upcase/1, ascii_downcase/1
+        - [x] recurse/0, recurse/1, recurse/2
         - [ ] the others
     - [x] User-defined functions
       - [x] def foo: . + 1; def foo(f;g): f|g; def addvalue($f): map(. + $f);
@@ -92,7 +93,6 @@ support.
 - [x] Variable/Symbolic Binding Operator `... as $identifier | ...`
 - [x] Reduce: `reduce .[] as $item (0; . + $item)`
 - [ ] foreach: `foreach .[] as $item (...;...;...)`
-- [ ] Recursion: `recurse(.children[])`
 - [ ] I/O (unlikely to make sense here)
 - [x] Update-assignment: `.posts[].comments |= . + ["Another"]`
 - [x] Arithmetic update-assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `//=`
