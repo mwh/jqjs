@@ -56,7 +56,7 @@ support.
         - [x] range/1, range/2, range/3, min, max, min_by/2, max_by/2
         - [x] any/0, any/1, any/2, all/0, all/1, all/2, not, isempty
         - [x] contains, inside, indices/1, index/1, rindex/1
-        - [x] path, getpath/1, setpath/2, delpaths/1, pick/1
+        - [x] path, getpath/1, setpath/2, delpaths/1, pick/1, paths, paths/1
         - [x] trim/0, ltrim/0, rtrim/0, trimstr/1, ltrimstr/1, rtrimstr/1
         - [x] startswith/1, endswith/1
         - [x] first, last, nth/1, first/1, last/1, nth/2, limit/2, skip/2
@@ -100,6 +100,7 @@ support.
 - [x] Reduce: `reduce .[] as $item (0; . + $item)`
 - [ ] foreach: `foreach .[] as $item (...;...;...)`
 - [ ] I/O (unlikely to make sense here)
+- [ ] Streams and stream functions
 - [x] Update-assignment: `.posts[].comments |= . + ["Another"]`
 - [x] Arithmetic update-assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `//=`
 - [ ] Plain assignment: `(.a,.b) = range(2)`

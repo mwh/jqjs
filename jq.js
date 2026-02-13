@@ -3167,6 +3167,8 @@ defineShorthandFunction('recurse', [], 'recurse(.[]?; true)')
 defineShorthandFunction('recurse', 'f', 'recurse(f; true)')
 defineShorthandFunction('unique_by', 'f', 'group_by(f) | map(.[0])')
 defineShorthandFunction('combinations', 'n', '. as $input | [ range(n) | $input ] | combinations');
+defineShorthandFunction('paths', [], 'path(..)|select(length > 0)')
+defineShorthandFunction('paths', 'f', 'path(..|select(f))|select(length > 0)')
 // SQL-style operators
 defineShorthandFunction('INDEX', 'f', '[ .[] | {(f): .} ] | add')
 defineShorthandFunction('INDEX', ['stream', 'f'], '[ stream | {(f): .} ] | add')
