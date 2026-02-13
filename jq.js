@@ -2531,6 +2531,21 @@ const functions = {
             yield input[n];
         }
     }, {params: [{label: 'index'}]}),
+    'nth/2': Object.assign(function*(input, conf, args) {
+        for (let n of args[0].apply(input, conf)) {
+            if (nameType(n) != 'number')
+                throw 'nth index must be a number, not ' + nameType(n)
+            if (n < 0)
+                throw 'negative indices not supported for nth'
+            let index = 0;
+            for (let item of args[1].apply(input, conf)) {
+                index++;
+                if (index <= n) continue;
+                yield item;
+                break;
+            }
+        }
+    }, {params: [{label: 'index'}, {label: 'expr', mode: 'defer'}]}),
     'first/1': Object.assign(function*(input, conf, args) {
         for (let n of args[0].apply(input, conf)) {
             return yield n;
@@ -2543,6 +2558,11 @@ const functions = {
         }
         yield last;
     }, {params: [{label: 'generator'}]}),
+    'isempty/1': function*(input, conf, args) {
+        for (let item of args[0].apply(input, conf))
+            return yield false;
+        return yield true;
+    },
     'limit/2': Object.assign(function*(input, conf, args) {
         for (let n of args[0].apply(input, conf)) {
             let count = 0;
@@ -2903,6 +2923,42 @@ const functions = {
             }
         }
     },
+    'flatten/0': function*(input) {
+        if (nameType(input) != 'array')
+            throw 'can only flatten array, not ' + nameType(input);
+        yield input.flat(Number.POSITIVE_INFINITY)
+    },
+    'flatten/1': function*(input, conf, args) {
+        if (nameType(input) != 'array')
+            throw 'can only flatten array, not ' + nameType(input);
+        for (let depth of args[0].apply(input, conf))
+            yield input.flat(depth);
+    },
+    'transpose/0': function*(input) {
+        if (nameType(input) != 'array')
+            throw 'can only transpose array, not ' + nameType(input);
+        let size = Math.max(...input.map(x => x.length));
+        let ret = [];
+        for (let y = 0; y < size; y++) {
+            let row = [];
+            ret.push(row);
+            for (let x = 0; x < size; x++)
+                row.push(input[x][y] ?? null)
+        }
+        yield ret;
+    },
+    'combinations/0': function*(input) {
+        function* helper(sofar, i) {
+            let arr = input[i];
+            if (arr === undefined)
+                return yield sofar;
+            for (let a of arr) {
+                let pfx = [...sofar, a];
+                yield* helper(pfx, i + 1);
+            }
+        }
+        yield* helper([], 0);
+    },
 }
 
 functions['match/2'] = functions['match/1'];
@@ -3110,6 +3166,7 @@ defineShorthandFunction('pick', ['pathexps'], '. as $in | reduce path(pathexps) 
 defineShorthandFunction('recurse', [], 'recurse(.[]?; true)')
 defineShorthandFunction('recurse', 'f', 'recurse(f; true)')
 defineShorthandFunction('unique_by', 'f', 'group_by(f) | map(.[0])')
+defineShorthandFunction('combinations', 'n', '. as $input | [ range(n) | $input ] | combinations');
 // SQL-style operators
 defineShorthandFunction('INDEX', 'f', '[ .[] | {(f): .} ] | add')
 defineShorthandFunction('INDEX', ['stream', 'f'], '[ stream | {(f): .} ] | add')
