@@ -597,6 +597,31 @@ function parse(tokens, startAt=0, until=[]) {
             i = r.i
             let expr = r.node
             ret.push(new ReduceNode(generator, name, init, expr))
+        // foreach .[] as $item (0; . + $item; . * 2)
+        } else if (t.type == 'foreach') {
+            let r = parse(tokens, i + 1, ['as'])
+            i = r.i
+            let generator = r.node
+            i++ // 'as'
+            let name = tokens[i].name
+            i++
+            if (tokens[i].type != 'left-paren')
+                throw 'expected left-paren in foreach at ' +
+                    describeLocation(tokens[i])
+            r = parse(tokens, i + 1, ['semicolon'])
+            i = r.i
+            let init = r.node
+            r = parse(tokens, i + 1, ['right-paren', 'semicolon'])
+            i = r.i
+            let update = r.node
+            let extract = new IdentityNode();
+            if (tokens[i].type == 'semicolon') {
+                r = parse(tokens, i + 1, ['right-paren']);
+                i = r.i;
+                extract = r.node
+            }
+            console.log('foreach', name, init, update, extract)
+            ret.push(new ForeachNode(generator, name, init, update, extract))
         // Interpolated string literal
         } else if (t.type == 'quote-interp') {
             let q
@@ -1922,6 +1947,31 @@ class ReduceNode extends ParseNode {
     }
     toString() {
         return 'reduce ' + this.generator + ' as $' + this.name + '(' + this.init + '; ' + this.expr + ')'
+    }
+}
+class ForeachNode extends ParseNode {
+    constructor(generator, name, init, update, extract) {
+        super()
+        this.generator = generator
+        this.name = name
+        this.init = init
+        this.update = update
+        this.extract = extract
+    }
+    * apply(input, conf) {
+        for (let accum of this.init.apply(input, conf)) {
+            for (let v of this.generator.apply(input, conf)) {
+                conf.variables[this.name] = v
+                for (let a of this.update.apply(accum, conf))
+                    accum = a
+                for (let e of this.extract.apply(accum, conf))
+                    yield e;
+            }
+            delete conf.variables[this.name]
+        }
+    }
+    toString() {
+        return 'foreach ' + this.generator + ' as $' + this.name + '(' + this.init + '; ' + this.update + (this.extract ? '; ' + this.extract : '') + ')'
     }
 }
 class IfNode extends ParseNode {

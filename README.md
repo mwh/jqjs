@@ -98,7 +98,7 @@ support.
 - [x] Regular expressions (uses JavaScript RegExp, so behaviour is incomplete)
 - [x] Variable/Symbolic Binding Operator `... as $identifier | ...`
 - [x] Reduce: `reduce .[] as $item (0; . + $item)`
-- [ ] foreach: `foreach .[] as $item (...;...;...)`
+- [x] foreach: `foreach .[] as $item (...;...;...)`
 - [ ] I/O (unlikely to make sense here)
 - [ ] Streams and stream functions
 - [x] Update-assignment: `.posts[].comments |= . + ["Another"]`
