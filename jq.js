@@ -362,10 +362,12 @@ function tokenise(str, startAt=0, parenDepth) {
             } else
                 ret.push({type: 'op', op: c})
         } else if (c == '=') {
-            if (str[i + 1] != '=')
-                throw 'plain assignment = is not supported'
-            i++
-            ret.push({type: 'op', op: '==', location})
+            if (str[i + 1] != '=') {
+                ret.push({type: 'equals'})
+            } else {
+                i++
+                ret.push({type: 'op', op: '==', location})
+            }
         } else if (c == '!') {
             if (str[i + 1] != '=')
                 throw 'unexpected ! at ' + location
@@ -569,6 +571,14 @@ function parse(tokens, startAt=0, until=[]) {
             i = r.i - 1
             let rhs = r.node
             ret = [new UpdateAssignment(lhs, rhs)]
+        // Plain assignment
+        } else if (t.type == 'equals') {
+            let lhs = makeFilterNode(ret)
+            let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
+                'right-brace', 'right-square', '<end-of-program>'].concat(until))
+            i = r.i - 1
+            let rhs = r.node
+            ret = [new PlainAssignment(lhs, rhs)]
         // Arithmetic update-assignment
         } else if (t.type == 'op-equals') {
             let lhs = makeFilterNode(ret)
@@ -1115,6 +1125,7 @@ class GenericIndex extends ParseNode {
     }
     * apply(input, conf) {
         let t = nameType(input)
+        if (t == 'null') return yield null;
         for (let i of this.index.apply(input, conf)) {
             if (t == 'array' && nameType(i) != 'number')
                 throw 'Cannot index array with ' + nameType(i) + ' ' +
@@ -1749,13 +1760,19 @@ class UpdateAssignment extends ParseNode {
     // Pluck the value at a path out of an object
     get(obj, p) {
         let o = obj
-        for (let i of p)
+        for (let i of p) {
+            if (o === null) return null;
             o = o[i]
+        }
         return o
     }
     // Set the value at path p to v in obj,
     // or delete the key if del is true.
     update(obj, p, v, del=false) {
+        if (obj === null && !del)
+            obj = {}
+        else if (obj === null)
+            return obj;
         let o = obj
         let last = p.pop()
         for (let i of p)
@@ -1769,6 +1786,43 @@ class UpdateAssignment extends ParseNode {
     }
     toString() {
         return this.l + ' |= ' + this.r
+    }
+}
+class PlainAssignment extends ParseNode {
+    constructor(l, r) {
+        super()
+        this.l = l
+        this.r = r
+    }
+    * apply(input, conf) {
+        for (let it of this.r.apply(input, conf)) {
+            let innerInput = JSON.parse(JSON.stringify(input))
+            for (let p of this.l.paths(innerInput, conf)) {
+                innerInput = this.update(innerInput, p, it)
+            }
+            yield innerInput
+        }
+    }
+    // Set the value at path p to v in obj
+    update(obj, p, v) {
+        if (obj === null)
+            obj = {}
+        let o = obj
+        let last = p.pop()
+        for (let i of p) {
+            if (!(i in o)) {
+                o[i] = {}
+                o = o[i]
+            } else
+                o = o[i]
+        }
+        if (typeof last == 'undefined')
+            return v
+        o[last] = v
+        return obj
+    }
+    toString() {
+        return this.l + ' = ' + this.r
     }
 }
 class FunctionCall extends ParseNode {
