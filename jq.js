@@ -2804,6 +2804,7 @@ const functions = {
         for (let re of args[0].apply(input, conf)) {
             for (let flags of args[1].apply(input, conf)) {
                 if (flags.includes('g')) flags = flags.gsub('g', '');
+                flags = makeFlagString(flags)
                 let regexp = new RegExp(re, flags + 'g');
                 let match;
                 while (null !== (match = regexp.exec(input))) {
