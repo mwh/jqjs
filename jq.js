@@ -2817,6 +2817,92 @@ const functions = {
         }
         yield best;
     },
+    'indices/1': function*(input, conf, args) {
+        const itype = nameType(input);
+        if (itype == 'string') {
+            for (let needle of args[0].apply(input, conf)) {
+                let ret = [];
+                let pos = input.indexOf(needle);
+                while (pos >= 0) {
+                    ret.push(pos);
+                    pos = input.indexOf(needle, pos + 1);
+                }
+                yield ret;
+            }
+        } else if (itype == 'array') {
+            for (let needle of args[0].apply(input, conf)) {
+                let ret = [];
+                if (nameType(needle) == 'array') {
+                    outer: for (let i = 0; i < input.length - needle.length; i++) {
+                        for (let j = 0; j < needle.length; j++)
+                            if (compareValues(input[i + j], needle[j]) != 0)
+                                continue outer;
+                        ret.push(i);
+                    }
+                } else {
+                    for (let i = 0; i < input.length; i++) {
+                        if (compareValues(input[i], needle) == 0)
+                            ret.push(i);
+                    }
+                }
+                yield ret;
+            }
+        } else if (itype == 'object') {
+            // This matches upstream behaviour, but no documentation or reason
+            for (let needle of args[0].apply(input, conf))
+                yield input[needle] ?? null;
+        } else {
+            throw 'cannot index ' + itype
+        }
+    },
+    'index/1': function*(input, conf, args) {
+        const itype = nameType(input);
+        if (itype == 'string') {
+            for (let needle of args[0].apply(input, conf)) {
+                let pos = input.indexOf(needle);
+                if (pos >= 0) yield pos; else yield null;
+            }
+        } else if (itype == 'array') {
+            for (let needle of args[0].apply(input, conf)) {
+                if (nameType(needle) == 'array') {
+                    outer: for (let i = 0; i < input.length - needle.length; i++) {
+                        for (let j = 0; j < needle.length; j++)
+                            if (compareValues(input[i + j], needle[j]) != 0)
+                                continue outer;
+                        yield i;
+                        break;
+                    }
+                } else {
+                    let pos = input.findIndex(x => compareValues(x, needle) == 0);
+                    if (pos >= 0) yield pos; else yield null;
+                }
+            }
+        }
+    },
+    'rindex/1': function*(input, conf, args) {
+        const itype = nameType(input);
+        if (itype == 'string') {
+            for (let needle of args[0].apply(input, conf)) {
+                let pos = input.lastIndexOf(needle);
+                if (pos >= 0) yield pos; else yield null;
+            }
+        } else if (itype == 'array') {
+            for (let needle of args[0].apply(input, conf)) {
+                if (nameType(needle) == 'array') {
+                    outer: for (let i = input.length - needle.length - 1; i >= 0; i--) {
+                        for (let j = 0; j < needle.length; j++)
+                            if (compareValues(input[i + j], needle[j]) != 0)
+                                continue outer;
+                        yield i;
+                        break;
+                    }
+                } else {
+                    let pos = input.findLastIndex(x => compareValues(x, needle) == 0);
+                    if (pos >= 0) yield pos; else yield null;
+                }
+            }
+        }
+    },
 }
 
 functions['match/2'] = functions['match/1'];
