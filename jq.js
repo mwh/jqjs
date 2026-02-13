@@ -2959,6 +2959,37 @@ const functions = {
         }
         yield* helper([], 0);
     },
+    'while/2': function*(input, conf, args) {
+        const cond = args[0];
+        const update = args[1];
+        let queue = [input];
+        while (queue.length) {
+            input = queue.shift();
+            for (let c of cond.apply(input, conf)) {
+                if (!c)
+                    continue;
+                yield input;
+                let outs = Array.from(update.apply(input, conf))
+                queue.unshift(...outs);
+            }
+        }
+    },
+    'until/2': function*(input, conf, args) {
+        const cond = args[0];
+        const update = args[1];
+        let queue = [input];
+        while (queue.length) {
+            input = queue.shift();
+            for (let c of cond.apply(input, conf)) {
+                if (c) {
+                    yield input;
+                    continue;
+                }
+                let outs = Array.from(update.apply(input, conf))
+                queue.unshift(...outs);
+            }
+        }
+    },
 }
 
 functions['match/2'] = functions['match/1'];
