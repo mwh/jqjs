@@ -40,7 +40,7 @@ support.
 - [x] Parentheses: `(...)`
 - [x] Array Construction: `[...]`
 - [x] Object Construction: `{ ... }` including shorthand `{ user, title }`
-      and computed keys `{ (.x): true }`
+      and { $var }, and computed keys `{ (.x): true }`
 - [x] Recursive Descent: `..`
 - [x] Addition, subtraction, multiplication, division, and modulo,
   including the overloaded type operations.

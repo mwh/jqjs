@@ -816,6 +816,13 @@ function parseObject(tokens, startAt=0) {
                     value: r.node,
                 })
                 i--
+            } else if (tokens[i].type == ',' || tokens[i].type == 'right-brace') {
+                // variable key-value: { $x } -> { "x": $x }
+                fields.push({
+                    key: new StringNode(varTok.name),
+                    value: new VariableReference(varTok.name),
+                })
+                i--
             } else {
                 throw 'unexpected ' + tokens[i].type + ', expected colon at ' +
                     describeLocation(tokens[i])
