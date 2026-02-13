@@ -2689,6 +2689,21 @@ const functions = {
             }
         }
     }, {params: [{label: 'regex'}]}),
+    'scan/2': function*(input, conf, args) {
+        for (let re of args[0].apply(input, conf)) {
+            for (let flags of args[1].apply(input, conf)) {
+                if (flags.includes('g')) flags = flags.gsub('g', '');
+                let regexp = new RegExp(re, flags + 'g');
+                let match;
+                while (null !== (match = regexp.exec(input))) {
+                    console.log(match)
+                    if (match.length > 1)
+                        yield match.slice(1);
+                    else yield match[0];
+                }
+            }
+        }
+    },
     'recurse/2': function*(input, conf, args) {
         let gen = args[0];
         let cond = args[1];
@@ -3200,6 +3215,7 @@ defineShorthandFunction('unique_by', 'f', 'group_by(f) | map(.[0])')
 defineShorthandFunction('combinations', 'n', '. as $input | [ range(n) | $input ] | combinations');
 defineShorthandFunction('paths', [], 'path(..)|select(length > 0)')
 defineShorthandFunction('paths', 'f', 'path(..|select(f))|select(length > 0)')
+defineShorthandFunction('scan', 'e', 'scan(e; "")')
 // SQL-style operators
 defineShorthandFunction('INDEX', 'f', '[ .[] | {(f): .} ] | add')
 defineShorthandFunction('INDEX', ['stream', 'f'], '[ stream | {(f): .} ] | add')

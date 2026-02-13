@@ -58,7 +58,7 @@ support.
         - [x] contains, inside, indices/1, index/1, rindex/1
         - [x] path, getpath/1, setpath/2, delpaths/1, pick/1, paths, paths/1
         - [x] trim/0, ltrim/0, rtrim/0, trimstr/1, ltrimstr/1, rtrimstr/1
-        - [x] startswith/1, endswith/1
+        - [x] startswith/1, endswith/1, scan/1, scan/2
         - [x] first, last, nth/1, first/1, last/1, nth/2, limit/2, skip/2
         - [x] flatten, flatten/1, transpose, combinations, combinations/1
         - [x] sub/1, sub/2, gsub/1, gsub/2, test/1, test/2, split/2
