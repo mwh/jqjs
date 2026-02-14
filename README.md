@@ -151,6 +151,24 @@ a function returning a complete trace of the output of every component
 of the jq program (`func.trace({x:[{y:2}, {y:4}]})`) as nested arrays
 and objects.
 
+The default export can also be used as a tag function:
+
+    jq`.x[].y`
+
+With no interpolations, this is almost the same as jq.compile, but uses
+raw strings so no escape sequences are necessary. Interpolated
+expressions are used *as JSON values*, so:
+
+    const obj = {x:1, y: [2, 3]}
+    let func = jq`. + ${obj} | paths`
+
+is equivalent to
+
+    let func = jq.compile('. + {"x": 1, "y": [2, 3]} | paths')
+
+As a result, they cannot be used to splice in e.g. a function name,
+other syntactic element, or the middle of a string, only a whole value.
+
 Performance
 -----------
 

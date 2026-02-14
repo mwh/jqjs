@@ -3354,13 +3354,31 @@ defineShorthandFunction('IN', ['source', 's'], 'any(source == s; .)')
  * @param {string} prog
  * @param {JQValue} input
  * @returns {IterableIterator<JQValue>}
+ *
+ * @overload
+ * @param {string[]} prog
+ * @param {any?} input
+ * @param {any[]?} rest
+ * @returns {(input: JQValue) => IterableIterator<JQValue>}
  */
-function combined(prog, input) {
-    let filter = compile(prog)
-    if (typeof input !== 'undefined') {
-        return filter(input)
+function combined(prog, input, ...rest) {
+    if (nameType(prog) == 'array') {
+        // tag string jq`...`
+        const collected = [];
+        rest.unshift(input);
+        for (let i = 0; i < prog.length; i++) {
+            collected.push(prog.raw[i]);
+            if (rest[i] !== undefined)
+                collected.push(JSON.stringify(rest[i]));
+        }
+        return compile(collected.join(''));
     } else {
-        return filter
+        let filter = compile(prog)
+        if (typeof input !== 'undefined') {
+            return filter(input)
+        } else {
+            return filter
+        }
     }
 }
 
