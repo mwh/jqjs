@@ -99,13 +99,13 @@ support.
 - [x] Variable/Symbolic Binding Operator `... as $identifier | ...`
 - [x] Reduce: `reduce .[] as $item (0; . + $item)`
 - [x] foreach: `foreach .[] as $item (...;...;...)`
+- [ ] Destructuring: `... as { x: $x, y: [$fst, $snd] }`
 - [ ] I/O (unlikely to make sense here)
 - [ ] Streams and stream functions
 - [x] Update-assignment: `.posts[].comments |= . + ["Another"]`
 - [x] Arithmetic update-assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `//=`
 - [x] Plain assignment: `(.a,.b) = range(2)`
 - [ ] Modules with `import` and `include`
-
 
 Installing and using
 --------------------

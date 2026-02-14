@@ -223,17 +223,25 @@ function defineShorthandFunction(name, params, body) {
 // identifier, colon, left-brace, right-brace, semicolon, at,
 // variable, as, reduce, foreach, def, import, include, question
 // if, then, else, end, elif
+const KEYWORDS = ['as', 'reduce', 'foreach', 'import', 'include', 'def', 'if', 'then', 'else', 'end', 'elif', 'and', 'or'];
 function tokenise(str, startAt=0, parenDepth) {
     let ret = []
     function error(msg) {
         throw msg;
     }
     let i
+    let lineNum = 1
+    let lineStart = 0;
     toplevel: for (i = startAt; i < str.length; i++) {
-        let location = i
+        let location = lineNum + ':' + (i - lineStart + 1);
         let c = str[i]
         if (c == ' ')
             continue;
+        if (c == '\n') {
+            lineNum++;
+            lineStart = i;
+            continue;
+        }
         if (c == '"' || c == "'") {
             let st = c
             let tok = ""
@@ -377,22 +385,24 @@ function tokenise(str, startAt=0, parenDepth) {
             let tok = ''
             while (isAlpha(str[i]) || isDigit(str[i]) || str[i] == '_')
                 tok += str[i++]
-            if (tok == 'as' || tok == 'reduce' || tok == 'foreach'
-                    || tok == 'import' || tok == 'include' || tok == 'def'
-                    || tok == 'if' || tok == 'then' || tok == 'else'
-                    || tok == 'end' || tok == 'elif') {
-                ret.push({type: tok, location})
-            } else if (tok == "and" || tok == "or") {
-                ret.push({type: 'op', op: tok})
+            if (tok == "and" || tok == "or") {
+                ret.push({type: 'op', op: tok, value: tok, location})
+            } else if (KEYWORDS.includes(tok)) {
+                ret.push({type: tok, value: tok, location})
             } else {
                 ret.push({type: 'identifier', value: tok, location})
             }
             i--
         } else if (c == ':') {
             ret.push({type: 'colon', location})
+        } else if (c == '#') {
+            while (str[i] != '\n' && str[i] != undefined)
+                i++;
+            lineNum++;
+            lineStart = i;
         }
     }
-    ret.push({type: '<end-of-program>', location: i})
+    ret.push({type: '<end-of-program>', location: lineNum + ':' + (i - lineStart + 1)})
     return {tokens: ret, i}
 }
 
@@ -524,6 +534,8 @@ function parse(tokens, startAt=0, until=[]) {
             let lhs = makeFilterNode(ret)
             if (t.type == 'as') {
                 let nameTok = tokens[i+1]
+                if (nameTok.type != 'variable')
+                    throw 'expected variable name after as at ' + describeLocation(tokens[i]) + ' not ' + tokens[i].type
                 lhs = new VariableBinding(lhs, nameTok.name)
                 i += 2
             }
@@ -584,7 +596,7 @@ function parse(tokens, startAt=0, until=[]) {
             let lhs = makeFilterNode(ret)
             let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
                 'right-brace', 'right-square', '<end-of-program>'].concat(until))
-            i = r.i
+            i = r.i - 1
             let rhs = r.node
             rhs = shuntingYard([new IdentityNode(), {type: 'op', op: t.op},
                 rhs])
@@ -595,6 +607,8 @@ function parse(tokens, startAt=0, until=[]) {
             i = r.i
             let generator = r.node
             i++ // 'as'
+            if (tokens[i].type != 'variable')
+                throw 'expected variable name in reduce at ' + describeLocation(tokens[i]) + ' not ' + tokens[i].type
             let name = tokens[i].name
             i++
             if (tokens[i].type != 'left-paren')
@@ -613,6 +627,8 @@ function parse(tokens, startAt=0, until=[]) {
             i = r.i
             let generator = r.node
             i++ // 'as'
+            if (tokens[i].type != 'variable')
+                throw 'expected variable name in foreach at ' + describeLocation(tokens[i]) + ' not ' + tokens[i].type
             let name = tokens[i].name
             i++
             if (tokens[i].type != 'left-paren')
@@ -630,7 +646,6 @@ function parse(tokens, startAt=0, until=[]) {
                 i = r.i;
                 extract = r.node
             }
-            console.log('foreach', name, init, update, extract)
             ret.push(new ForeachNode(generator, name, init, update, extract))
         // Interpolated string literal
         } else if (t.type == 'quote-interp') {
@@ -783,7 +798,7 @@ function parseObject(tokens, startAt=0) {
     let i = startAt
     let fields = []
     while (tokens[i].type != 'right-brace') {
-        if (tokens[i].type == 'identifier') {
+        if (tokens[i].type == 'identifier' || KEYWORDS.includes(tokens[i].type)) {
             // bare name x
             let ident = tokens[i++]
             if (tokens[i].type == 'colon') {
