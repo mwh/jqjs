@@ -479,7 +479,7 @@ function parse(tokens, startAt=0, until=[]) {
                         r.node = new NumberNode(0)
                     let e = parse(tokens, r.i + 1, ['right-square'])
                     if (e.node.length === 0)
-                        e.node = new NumberNode(-1)
+                        e.node = null
                     ret.push(new SliceNode(lhs, r.node, e.node))
                     r = e
                 } else if (r.node.length === 0)
@@ -738,9 +738,9 @@ function parse(tokens, startAt=0, until=[]) {
     // previous branches.
     if (commaAccum.length) {
         commaAccum.push(makeFilterNode(ret))
-        return {node: new CommaNode(commaAccum), i}
+        return {node: new CommaNode(commaAccum), i, length: ret.length + commaAccum.length}
     }
-    return {node: makeFilterNode(ret), i}
+    return {node: makeFilterNode(ret), i, length: ret.length}
 }
 
 function makeFilterNode(ret) {
@@ -786,7 +786,7 @@ function parseDotSquare(tokens, startAt=0) {
             fr.node = new NumberNode(0)
         r = parse(tokens, r.i + 1, ['right-square'])
         if (r.length === 0)
-            r.node = new NumberNode(-1)
+            r.node = null
         return {node: new GenericSlice(fr.node, r.node), i: r.i}
     }
     return {node: new GenericIndex(r.node), i: r.i}
@@ -1114,23 +1114,30 @@ class SliceNode extends ParseNode {
         this.to = to
     }
     * apply(input, conf) {
-        for (let l of this.lhs.apply(input, conf))
-            for (let s of this.from.apply(input, conf)) {
+        for (let l of this.lhs.apply(input, conf)) {
+            let fromIter = this.from ? this.from.apply(input, conf) : [0]
+            for (let s of fromIter) {
                 if (s < 0) s += l.length
-                for (let e of this.to.apply(input, conf)) {
+                let toIter = this.to ? this.to.apply(input, conf) : [l.length]
+                for (let e of toIter) {
                     if (e < 0) e += l.length
                     yield l.slice(s, e)
                 }
             }
+        }
     }
     * paths(input, conf) {
-        for (let l of this.lhs.paths(input, conf))
-            for (let a of this.from.apply(input, conf))
-                for (let b of this.to.apply(input, conf))
+        for (let l of this.lhs.paths(input, conf)) {
+            let fromIter = this.from ? this.from.apply(input, conf) : [0]
+            for (let a of fromIter) {
+                let toIter = this.to ? this.to.apply(input, conf) : [l.length]
+                for (let b of toIter)
                     yield l.concat([{start:a, end:b}])
+            }
+        }
     }
     toString() {
-        return this.lhs.toString() + '[' + this.from.toString() + ':' + this.to.toString() + ']'
+        return this.lhs.toString() + '[' + (this.from ? this.from.toString() : '') + ':' + (this.to ? this.to.toString() : '') + ']'
     }
 }
 class GenericIndex extends ParseNode {
@@ -1174,9 +1181,11 @@ class GenericSlice extends ParseNode {
         this.to = to
     }
     * apply(input, conf) {
-        for (let l of this.from.apply(input, conf)) {
+        let fromIter = this.from ? this.from.apply(input, conf) : [0]
+        for (let l of fromIter) {
             if (l < 0) l += input.length
-            for (let r of this.to.apply(input, conf)) {
+            let toIter = this.to ? this.to.apply(input, conf) : [input.length]
+            for (let r of toIter) {
                 if (r < 0)
                     r += input.length
                 yield input.slice(l, r)
@@ -1184,12 +1193,15 @@ class GenericSlice extends ParseNode {
         }
     }
     * paths(input, conf) {
-        for (let l of this.from.apply(input, conf))
-            for (let r of this.to.apply(input, conf))
+        let fromIter = this.from ? this.from.apply(input, conf) : [0]
+        for (let l of fromIter) {
+            let toIter = this.to ? this.to.apply(input, conf) : [input.length]
+            for (let r of toIter)
                 yield [{start: l, end: r}]
+        }
     }
     toString() {
-        return '.[' + this.from.toString() + ':' + this.to.toString() + ']'
+        return '.[' + (this.from ? this.from.toString() : '') + ':' + (this.to ? this.to.toString() : '') + ']'
     }
 }
 class IdentityNode extends ParseNode {
