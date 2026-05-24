@@ -20,16 +20,16 @@
 * SOFTWARE.
 */
 
-
+///@ts-check
 /**
  * Compiles a jq program string into a generator function that produces all
  * the program's outputs given the initial input value.
- *
+ * @typedef {{ node: null, output: any, next: any[], variables?:string }} JQTrace
  * @param {string} prog - jq source code to compile.
  * @returns {((input: JQValue) => Generator<JQValue, void, unknown>) & {
  *   filter: {node: ParseNode},
  *   ast: ParseNode,
- *   trace: (input: any) => { node: null, output: any, next: any[] }
+ *   trace: (input: any) => JQTrace
  * }} A function that applies the compiled filter to input data. The returned function
  * also has an `ast` property containing the parsed syntax tree, and a `trace` method
  * for tracing filter execution.
@@ -57,22 +57,22 @@ function compile(prog) {
     return ret
 }
 
-function compileNode(prog) {
+function compileNode(/**@type {string}*/prog) {
     return parse(tokenise(prog).tokens).node
 }
 
-function isAlpha(c) {
+function isAlpha(/**@type {string}*/c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_'
 }
 
-function isDigit(c) {
+function isDigit(/**@type {string}*/c) {
     return (c >= '0' && c <= '9')
 }
 
-function prettyPrint(val, indent='', step='    ', LF='\n') {
+function prettyPrint(/**@type {any}*/val, indent = '', step = '    ', LF = '\n') {
     let SP = step ? ' ' : ''
     if (typeof val == 'undefined')
-        return val
+        return "undefined"
     if (val === null) {
         return 'null'
     } else if (val instanceof Array) {
@@ -90,7 +90,7 @@ function prettyPrint(val, indent='', step='    ', LF='\n') {
         let first = true
         for (let k of Object.keys(val)) {
             ret += (first ? '' : ',') + LF + indent + step +
-                '"' + k + '":' +SP+ prettyPrint(val[k], indent + step, step, LF)
+                '"' + k + '":' + SP + prettyPrint(val[k], indent + step, step, LF)
             first = false
         }
         ret += LF + indent + '}'
@@ -101,10 +101,10 @@ function prettyPrint(val, indent='', step='    ', LF='\n') {
         return '' + val
     } else if (typeof val == 'boolean') {
         return val ? 'true' : 'false'
-    }
+    } else return ""
 }
 
-function escapeString(s) {
+function escapeString(/**@type {string}*/s) {
     s = s.replace(/\\/g, '\\\\')
     s = s.replace(/"/g, '\\"')
     s = s.replace(/\n/g, '\\n')
@@ -113,7 +113,7 @@ function escapeString(s) {
     return s
 }
 
-function* zip(a, b) {
+function* zip(/**@type {IterableIterator<JQValue>}*/a, /**@type {IterableIterator<JQValue>}*/b) {
     let aa = a[Symbol.iterator]()
     let bb = b[Symbol.iterator]()
     let v1 = aa.next()
@@ -125,13 +125,13 @@ function* zip(a, b) {
     }
 }
 
-// Implements the jq ordering algorithm, which is terrible.
-function compareValues(a, b) {
+const compareValuesOrder = ['null', 'boolean', 'number', 'string', 'array', 'object']
+/** Implements the jq ordering algorithm, which is terrible. @returns {number}*/
+function compareValues(/**@type {any}*/a, /**@type {any}*/b) {
     let at = nameType(a)
     let bt = nameType(b)
     if (at != bt) {
-        return compareValues.typeOrder.indexOf(at) -
-            compareValues.typeOrder.indexOf(bt)
+        return compareValuesOrder.indexOf(at) - compareValuesOrder.indexOf(bt);
     }
     if (at == 'boolean') {
         if (a && !b) return 1
@@ -166,29 +166,14 @@ function compareValues(a, b) {
     }
     return 0
 }
-compareValues.typeOrder = ['null', 'boolean', 'number', 'string',
-                           'array', 'object']
-
-// Create a function from a program string.
-//
-// params is an array of parameter names
-// body is a jq program as a string, which may use the parameters
-//
-// For example:
-//     makeFunc(['f'], '[.[] | f]')
-// defines the map function.
-function makeFunc(params, body, pathFunc=false) {
-    let c = compileNode(body)
-    return makeUserFuncFromNode(params, c, pathFunc)
-}
 
 // Lift a node to a function
-function makeUserFuncFromNode(params, node, pathFunc=false) {
-    let c = node
-    let f = (x, conf) => c.apply(x, conf)
-    if (pathFunc)
-        f = (x, conf) => c.paths(x, conf)
-    let ret = function*(input, conf, args) {
+// defines the map function example:
+//     makeUserFuncFromNode(['f'], compileNode('[.[] | f]'))
+
+function makeUserFuncFromNode(/**@type {string[]}*/params,/**@type {ParseNode}*/ node, pathFunc = false) {
+    let f = pathFunc ? node.paths(x, conf) : (x, conf) => node.apply(x, conf);
+    let func = function* (input, conf, args) {
         let origArgs = conf.userFuncArgs
         conf.userFuncArgs = Object.create(origArgs)
         for (let i = 0; i < params.length; i++) {
@@ -199,8 +184,7 @@ function makeUserFuncFromNode(params, node, pathFunc=false) {
         yield* f(input, conf)
         conf.userFuncArgs = origArgs
     }
-    ret.params = Array.prototype.map.call(params, label => ({label, mode: 'defer'}))
-    return ret;
+    return { func, params: [...params].map(label => ({ label, mode: 'defer' }))}
 }
 
 // Define and save a function that is shorthand for a longer expression
@@ -208,11 +192,9 @@ function makeUserFuncFromNode(params, node, pathFunc=false) {
 // name is the name of the function
 // params is an array of parameters, or a string of one-character names
 // body is a jq program as a string
-function defineShorthandFunction(name, params, body) {
-    let fname = name + '/' + params.length
-    functions[fname] = makeFunc(params, body)
-    functions[fname].params = Array.prototype.map.call(params, label => ({label, mode: 'defer'}))
-    functions[fname + '-paths'] = makeFunc(params, body, true)
+function defineShorthandFunction(/**@type {string}*/name, /**@type {string[]}*/params, /**@type {string}*/body) {
+    functions[`${name}/${params.length}`] = makeUserFuncFromNode(params, compileNode(body))
+    functions[`${name}/${params.length}-paths`] = makeUserFuncFromNode(params, compileNode(body), true)
 }
 
 // Recursive-descent parser for JQ query language
@@ -224,9 +206,11 @@ function defineShorthandFunction(name, params, body) {
 // variable, as, reduce, foreach, def, import, include, question
 // if, then, else, end, elif
 const KEYWORDS = ['as', 'reduce', 'foreach', 'import', 'include', 'def', 'if', 'then', 'else', 'end', 'elif', 'and', 'or'];
-function tokenise(str, startAt=0, parenDepth) {
-    let ret = []
-    function error(msg) {
+/**@typedef {{type:string,name?:string,op?:'+'|'*'|'-'|'/'|'%'|'//'|'=='|'!='|'<'|'>'|'<='|'>='|'and'|'or',value?:any,location?:string}} Token */
+/**@returns {{tokens:Token[],i:number}}*/
+function tokenise(/**@type {string}*/str, startAt = 0, parenDepth = 0) {
+    let ret = /**@type {Token[]}*/([])
+    function error(/**@type {string}*/msg) {
         throw msg;
     }
     let i
@@ -266,12 +250,12 @@ function tokenise(str, startAt=0, parenDepth) {
                     else if (q == 'b') tok += '\b'
                     else if (q == 'f') tok += '\f'
                     else if (q == '/') tok += '/'
-                    else if (q == '\\')tok += '\\'
+                    else if (q == '\\') tok += '\\'
                     else if (q == 'u') uniEsc = 4
                     else if (q == '(') {
                         // Interpolation
                         let r = tokenise(str, i + 1, 0)
-                        ret.push({type: 'quote-interp', value: tok, location})
+                        ret.push({ type: 'quote-interp', value: tok, location })
                         tok = ''
                         ret = ret.concat(r.tokens)
                         i = r.i
@@ -281,7 +265,7 @@ function tokenise(str, startAt=0, parenDepth) {
                 } else if (str[i] == '\\') {
                     escaped = true
                 } else if (str[i] == st) {
-                    ret.push({type: 'quote', value: tok, location})
+                    ret.push({ type: 'quote', value: tok, location })
                     continue toplevel
                 } else {
                     escaped = false
@@ -293,108 +277,108 @@ function tokenise(str, startAt=0, parenDepth) {
             let tok = ''
             while (isDigit(str[i]) || str[i] == '.')
                 tok += str[i++]
-            ret.push({type: 'number', value: Number.parseFloat(tok), location})
-                i--
+            ret.push({ type: 'number', value: Number.parseFloat(tok), location })
+            i--
         } else if (c == '.') {
-            let d = str[i+1]
+            let d = str[i + 1]
             if (isAlpha(d)) {
                 i++
                 let tok = ''
                 while (isAlpha(str[i]) || isDigit(str[i]))
                     tok += str[i++]
-                ret.push({type: 'identifier-index', value: tok, location})
+                ret.push({ type: 'identifier-index', value: tok, location })
                 i--
             } else if (d == '[') {
                 i++
-                ret.push({type: 'dot-square', location})
+                ret.push({ type: 'dot-square', location })
             } else if (d == '.') {
                 i++
-                ret.push({type: 'dot-dot', location})
+                ret.push({ type: 'dot-dot', location })
             } else {
-                ret.push({type: 'dot', location})
+                ret.push({ type: 'dot', location })
             }
         } else if (c == '$') {
-            let d = str[i+1]
+            let d = str[i + 1]
             i++
             let tok = ''
             while (isAlpha(str[i]) || isDigit(str[i])) {
                 tok += str[i]
                 i++
             }
-            ret.push({type: 'variable', name: tok, location})
+            ret.push({ type: 'variable', name: tok, location })
             i--
         } else if (c == '[') {
-            ret.push({type: 'left-square', location})
+            ret.push({ type: 'left-square', location })
         } else if (c == ']') {
-            ret.push({type: 'right-square', location})
+            ret.push({ type: 'right-square', location })
         } else if (c == '(') {
-            ret.push({type: 'left-paren', location})
+            ret.push({ type: 'left-paren', location })
             parenDepth++
         } else if (c == ')') {
-            ret.push({type: 'right-paren', location})
+            ret.push({ type: 'right-paren', location })
             parenDepth--
             if (parenDepth < 0)
-                return {tokens: ret, i}
+                return { tokens: ret, i }
         } else if (c == '{') {
-            ret.push({type: 'left-brace', location})
+            ret.push({ type: 'left-brace', location })
         } else if (c == '}') {
-            ret.push({type: 'right-brace', location})
+            ret.push({ type: 'right-brace', location })
         } else if (c == ',') {
-            ret.push({type: 'comma', location})
+            ret.push({ type: 'comma', location })
         } else if (c == ';') {
-            ret.push({type: 'semicolon', location})
+            ret.push({ type: 'semicolon', location })
         } else if (c == '@') {
-            ret.push({type: 'at', location})
+            ret.push({ type: 'at', location })
         } else if (c == '?') {
-            ret.push({type: 'question', location})
+            ret.push({ type: 'question', location })
         } else if (c == '|') {
-            let d = str[i+1]
+            let d = str[i + 1]
             if (d == '=') {
-                ret.push({type: 'pipe-equals', location})
+                ret.push({ type: 'pipe-equals', location })
                 i++
             } else
-                ret.push({type: 'pipe', location})
-        // Infix operators
+                ret.push({ type: 'pipe', location })
+            // Infix operators
         } else if (c == '+' || c == '*' || c == '-' || c == '/' || c == '%'
-                || c == '<' || c == '>') {
-            if (c == '/' && str[i+1] == '/') {
+            || c == '<' || c == '>') {
+            if (c == '/' && str[i + 1] == '/') {
                 c = '//'
                 i++
             }
-            if (str[i+1] == '=') {
+            if (str[i + 1] == '=') {
                 if (c == '<' || c == '>')
-                    ret.push({type: 'op', op: c + '=', location})
+                    ret.push({ type: 'op', op: c + '=', location })
                 else
-                    ret.push({type: 'op-equals', op: c, location})
+                    ret.push({ type: 'op-equals', op: c, location })
                 i++
             } else
-                ret.push({type: 'op', op: c})
+                ret.push({ type: 'op', op: c })
         } else if (c == '=') {
             if (str[i + 1] != '=') {
-                ret.push({type: 'equals'})
+                ret.push({ type: 'equals' })
             } else {
                 i++
-                ret.push({type: 'op', op: '==', location})
+                ret.push({ type: 'op', op: '==', location })
             }
         } else if (c == '!') {
             if (str[i + 1] != '=')
                 throw 'unexpected ! at ' + location
             i++
-            ret.push({type: 'op', op: '!=', location})
+            ret.push({ type: 'op', op: '!=', location })
         } else if (isAlpha(c)) {
             let tok = ''
             while (isAlpha(str[i]) || isDigit(str[i]) || str[i] == '_')
                 tok += str[i++]
             if (tok == "and" || tok == "or") {
-                ret.push({type: 'op', op: tok, value: tok, location})
+                ret.push({ type: 'op', op: tok, value: tok, location })
             } else if (KEYWORDS.includes(tok)) {
-                ret.push({type: tok, value: tok, location})
+                ret.push({ type: tok, value: tok, location })
             } else {
-                ret.push({type: 'identifier', value: tok, location})
+                ret.push({ type: 'identifier', value: tok, location })
             }
             i--
         } else if (c == ':') {
-            ret.push({type: 'colon', location})
+            ret.push({ type: 'colon', location })
         } else if (c == '#') {
             while (str[i] != '\n' && str[i] != undefined)
                 i++;
@@ -402,11 +386,11 @@ function tokenise(str, startAt=0, parenDepth) {
             lineStart = i;
         }
     }
-    ret.push({type: '<end-of-program>', location: lineNum + ':' + (i - lineStart + 1)})
-    return {tokens: ret, i}
+    ret.push({ type: '<end-of-program>', location: lineNum + ':' + (i - lineStart + 1) })
+    return { tokens: ret, i }
 }
 
-function describeLocation(token) {
+function describeLocation(/**@type {Token=}*/token) {
     if (token) {
         return token.location
     }
@@ -425,11 +409,11 @@ function describeLocation(token) {
  * @param {string[]} until 
  * @returns { {node: ParseNode, i: number} }
  */
-function parse(tokens, startAt=0, until=[]) {
+function parse(tokens, startAt = 0, until = []) {
     let i = startAt
     let t = tokens[i]
-    let ret = []
-    let commaAccum = []
+    let ret = /**@type {any[]}*/([])
+    let commaAccum = /**@type {FilterNode[]}*/([])
     while (t && (until.indexOf(t.type) == -1)) {
         // Simple cases
         if (t.type == 'identifier-index') {
@@ -451,7 +435,7 @@ function parse(tokens, startAt=0, until=[]) {
                 // Named function
                 let fname = t.value
                 let args = []
-                if (tokens[i+1] && tokens[i+1].type == 'left-paren') {
+                if (tokens[i + 1] && tokens[i + 1].type == 'left-paren') {
                     i++
                     while (tokens[i].type != 'right-paren') {
                         let arg = parse(tokens, i + 1,
@@ -462,7 +446,7 @@ function parse(tokens, startAt=0, until=[]) {
                 }
                 ret.push(new FunctionCall(fname + '/' + args.length, args))
             }
-        // Recursive square bracket cases
+            // Recursive square bracket cases
         } else if (t.type == 'dot-square') {
             let r = parseDotSquare(tokens, i)
             ret.push(r.node)
@@ -490,40 +474,40 @@ function parse(tokens, startAt=0, until=[]) {
                 ret.push(new ArrayNode(r.node))
             }
             i = r.i
-        // Recursive parenthesis case
+            // Recursive parenthesis case
         } else if (t.type == 'left-paren') {
             // Find the body of the brackets first
             let r = parse(tokens, i + 1, ['right-paren'])
             ret.push(r.node)
             i = r.i
-        // Object literal
+            // Object literal
         } else if (t.type == 'left-brace') {
             let r = parseObject(tokens, i + 1)
             ret.push(r.node)
             i = r.i
-        // Format @x
+            // Format @x
         } else if (t.type == 'at') {
             let n = tokens[++i]
             if (!n || n.type != 'identifier')
                 throw 'expected identifier after @ at ' +
-                    describeLocation(n)
+                describeLocation(n)
             let fmt = n.value
             if (!formats[fmt])
                 throw 'not a valid format: ' + fmt
             let q
-            if (tokens[i+1] && tokens[i+1].type == 'quote-interp') {
-                ({q, i} = parseStringInterpolation(tokens, i + 1))
+            if (tokens[i + 1] && tokens[i + 1].type == 'quote-interp') {
+                ({ q, i } = parseStringInterpolation(tokens, i + 1))
                 i = i
             }
             ret.push(new FormatNode(fmt, q))
-        // Comma consumes everything previous and splits in-place
-        // (parsing carries on in this method)
+            // Comma consumes everything previous and splits in-place
+            // (parsing carries on in this method)
         } else if (t.type == 'comma') {
             commaAccum.push(makeFilterNode(ret))
             ret = []
-        // Pipe consumes everything previous *including* commas
-        // and splits by recursing for the right-hand side.
-        // "as" indicates a variable binding.
+            // Pipe consumes everything previous *including* commas
+            // and splits by recursing for the right-hand side.
+            // "as" indicates a variable binding.
         } else if (t.type == 'pipe' || t.type == 'as') {
             if (commaAccum.length) {
                 // .x,.y | .[1] is the same as (.x,.y) | .[1]
@@ -533,7 +517,7 @@ function parse(tokens, startAt=0, until=[]) {
             }
             let lhs = makeFilterNode(ret)
             if (t.type == 'as') {
-                let nameTok = tokens[i+1]
+                let nameTok = tokens[i + 1]
                 if (nameTok.type != 'variable')
                     throw 'expected variable name after as at ' + describeLocation(tokens[i]) + ' not ' + tokens[i].type
                 lhs = new VariableBinding(lhs, nameTok.name)
@@ -545,17 +529,17 @@ function parse(tokens, startAt=0, until=[]) {
             if (tokens[i] && until.indexOf(tokens[i].type) != -1)
                 i--
             ret = [new PipeNode(lhs, rhs)]
-        // Question mark suppresses errors on the preceding filter
+            // Question mark suppresses errors on the preceding filter
         } else if (t.type == 'question') {
             let p = ret.pop()
             if (!p)
                 throw 'unexpected ? without preceding filter at ' +
-                    describeLocation(t)
+                describeLocation(t)
             ret.push(new ErrorSuppression(p))
-        // Infix operators
+            // Infix operators
         } else if (t.type == 'op') {
-            if (ret.length == 0 && t.op == '-' && tokens[i+1].type == 'number') {
-                tokens[i+1].value = -tokens[i+1].value
+            if (ret.length == 0 && t.op == '-' && tokens[i + 1].type == 'number') {
+                tokens[i + 1].value = -tokens[i + 1].value
                 t = tokens[++i]
                 continue
             }
@@ -575,7 +559,7 @@ function parse(tokens, startAt=0, until=[]) {
             }
             ret = [shuntingYard(stream)]
             if (tokens[i]) i--
-        // Update-assignment
+            // Update-assignment
         } else if (t.type == 'pipe-equals') {
             let lhs = makeFilterNode(ret)
             let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
@@ -583,7 +567,7 @@ function parse(tokens, startAt=0, until=[]) {
             i = r.i - 1
             let rhs = r.node
             ret = [new UpdateAssignment(lhs, rhs)]
-        // Plain assignment
+            // Plain assignment
         } else if (t.type == 'equals') {
             let lhs = makeFilterNode(ret)
             let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
@@ -591,17 +575,16 @@ function parse(tokens, startAt=0, until=[]) {
             i = r.i - 1
             let rhs = r.node
             ret = [new PlainAssignment(lhs, rhs)]
-        // Arithmetic update-assignment
+            // Arithmetic update-assignment
         } else if (t.type == 'op-equals') {
             let lhs = makeFilterNode(ret)
             let r = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
                 'right-brace', 'right-square', '<end-of-program>'].concat(until))
             i = r.i - 1
             let rhs = r.node
-            rhs = shuntingYard([new IdentityNode(), {type: 'op', op: t.op},
-                rhs])
+            rhs = shuntingYard([new IdentityNode(), { type: 'op', op: t.op }, rhs])
             ret = [new UpdateAssignment(lhs, rhs)]
-        // reduce .[] as $item (0, . + $item)
+            // reduce .[] as $item (0, . + $item)
         } else if (t.type == 'reduce') {
             let r = parse(tokens, i + 1, ['as'])
             i = r.i
@@ -613,7 +596,7 @@ function parse(tokens, startAt=0, until=[]) {
             i++
             if (tokens[i].type != 'left-paren')
                 throw 'expected left-paren in reduce at ' +
-                    describeLocation(tokens[i])
+                describeLocation(tokens[i])
             r = parse(tokens, i + 1, ['semicolon'])
             i = r.i
             let init = r.node
@@ -621,7 +604,7 @@ function parse(tokens, startAt=0, until=[]) {
             i = r.i
             let expr = r.node
             ret.push(new ReduceNode(generator, name, init, expr))
-        // foreach .[] as $item (0; . + $item; . * 2)
+            // foreach .[] as $item (0; . + $item; . * 2)
         } else if (t.type == 'foreach') {
             let r = parse(tokens, i + 1, ['as'])
             i = r.i
@@ -633,7 +616,7 @@ function parse(tokens, startAt=0, until=[]) {
             i++
             if (tokens[i].type != 'left-paren')
                 throw 'expected left-paren in foreach at ' +
-                    describeLocation(tokens[i])
+                describeLocation(tokens[i])
             r = parse(tokens, i + 1, ['semicolon'])
             i = r.i
             let init = r.node
@@ -647,15 +630,15 @@ function parse(tokens, startAt=0, until=[]) {
                 extract = r.node
             }
             ret.push(new ForeachNode(generator, name, init, update, extract))
-        // Interpolated string literal
+            // Interpolated string literal
         } else if (t.type == 'quote-interp') {
             let q
-            ({q, i} = parseStringInterpolation(tokens, i))
+            ({ q, i } = parseStringInterpolation(tokens, i))
             ret.push(q)
-        // Variable reference
+            // Variable reference
         } else if (t.type == 'variable') {
             ret.push(new VariableReference(t.name))
-        // Conditional if-then-(elif-then)*-else?-end
+            // Conditional if-then-(elif-then)*-else?-end
         } else if (t.type == 'if') {
             let conds = []
             let trueExprs = []
@@ -664,13 +647,13 @@ function parse(tokens, startAt=0, until=[]) {
                 let cond = parse(tokens, i + 1, ['then'])
                 if (!tokens[cond.i] || tokens[cond.i].type != 'then')
                     throw 'expected then at ' +
-                        describeLocation(tokens[cond.i]) +
-                        ', from ' + tokens[i].type + ' at ' + tokens[i].location
+                    describeLocation(tokens[cond.i]) +
+                    ', from ' + tokens[i].type + ' at ' + tokens[i].location
                 let trueExpr = parse(tokens, cond.i + 1, ['else', 'elif', 'end'])
                 if (trueExpr.i == cond.i + 1)
                     throw 'expected expression after then at ' +
-                        describeLocation(tokens[cond.i + 1]) + ', not ' +
-                        tokens[cond.i + 1].type
+                    describeLocation(tokens[cond.i + 1]) + ', not ' +
+                    tokens[cond.i + 1].type
                 i = trueExpr.i
                 conds.push(cond.node)
                 trueExprs.push(trueExpr.node)
@@ -695,7 +678,7 @@ function parse(tokens, startAt=0, until=[]) {
                 i++;
                 while (tokens[i] && tokens[i].type != 'right-paren') {
                     if (tokens[i].type == 'variable') { // def foo($f), translated to a pipe to that variable
-                        varParams.push({truename: '$inner' + params.length + '/0', bindname: tokens[i].name});
+                        varParams.push({ truename: '$inner' + params.length + '/0', bindname: tokens[i].name });
                         params.push('$inner' + params.length)
                     } else {
                         if (tokens[i].type != 'identifier')
@@ -703,7 +686,7 @@ function parse(tokens, startAt=0, until=[]) {
                         params.push(tokens[i].value);
                     }
                     i++;
-                    if (tokens[i] && tokens[i].type == 'right-paren') {}
+                    if (tokens[i] && tokens[i].type == 'right-paren') { }
                     else if (tokens[i] && tokens[i].type == 'semicolon') { i++; }
                     else {
                         throw 'expected ) or semicolon in parameter list of function ' + name + ' at ' + tokens[i].location
@@ -716,16 +699,14 @@ function parse(tokens, startAt=0, until=[]) {
             if (!tokens[i] || tokens[i].type != 'colon')
                 throw 'expected : when defining function ' + nameTok.value + ' at ' + t.location
 
-            let {node, i: j} = parse(tokens, i + 1, ['semicolon']);
+            let { node, i: j } = parse(tokens, i + 1, ['semicolon']);
             // If there are $var parameters, bind the arguments as single values
             for (let vp of varParams) {
                 let lhs = new VariableBinding(new FunctionCall(vp.truename, []), vp.bindname);
                 node = new PipeNode(lhs, node);
             }
-            let func = makeUserFuncFromNode(params, node);
-            functions[name + '/' + params.length] = func;
-            let pathFunc = makeUserFuncFromNode(params, node, true);
-            functions[name + '/' + params.length + '-paths'] = pathFunc;
+            functions[`${name}/${params.length}`] = makeUserFuncFromNode(params, node);
+            functions[`${name}/${params.length}-paths`] = makeUserFuncFromNode(params, node, true);
             i = j;
         } else if (t.type == '<end-of-program>' && until.length == 0) {
             break
@@ -738,12 +719,12 @@ function parse(tokens, startAt=0, until=[]) {
     // previous branches.
     if (commaAccum.length) {
         commaAccum.push(makeFilterNode(ret))
-        return {node: new CommaNode(commaAccum), i}
+        return { node: new CommaNode(commaAccum), i }
     }
-    return {node: makeFilterNode(ret), i}
+    return { node: makeFilterNode(ret), i }
 }
 
-function makeFilterNode(ret) {
+function makeFilterNode(/**@type {FilterNode[]}*/ret) {
     if (ret.length == 1)
         return ret[0]
     return new FilterNode(ret)
@@ -752,7 +733,7 @@ function makeFilterNode(ret) {
 // Consumes pairs (quote-interp, expression up to rparen)* followed by
 // a bare string and returns a StringLiteral node with the interleaving
 // lists.
-function parseStringInterpolation(tokens, i) {
+function parseStringInterpolation(/**@type {Token[]}*/tokens, /**@type {number}*/i) {
     let t = tokens[i]
     let strings = []
     let interps = []
@@ -769,15 +750,15 @@ function parseStringInterpolation(tokens, i) {
     }
     // Must be the ending quote now
     strings.push(tokens[i].value)
-    return {q:new StringLiteral(strings, interps), i}
+    return { q: new StringLiteral(strings, interps), i }
 }
 
-function parseDotSquare(tokens, startAt=0) {
+function parseDotSquare(/**@type {Token[]}*/tokens, startAt = 0) {
     let i = startAt
     let ds = tokens[i]
     i++
     if (tokens[i].type == 'right-square')
-        return {node: new GenericValueIterator(), i}
+        return { node: new GenericValueIterator(), i }
     let r = parse(tokens, i, ['right-square', 'colon'])
     if (tokens[r.i].type == 'colon') {
         // Slice
@@ -787,14 +768,14 @@ function parseDotSquare(tokens, startAt=0) {
         r = parse(tokens, r.i + 1, ['right-square'])
         if (r.length === 0)
             r.node = new NumberNode(-1)
-        return {node: new GenericSlice(fr.node, r.node), i: r.i}
+        return { node: new GenericSlice(fr.node, r.node), i: r.i }
     }
-    return {node: new GenericIndex(r.node), i: r.i}
+    return { node: new GenericIndex(r.node), i: r.i }
 }
 
 // Parse an object literal, expecting to start immediately inside the
 // left brace and to consume up to and including the right brace.
-function parseObject(tokens, startAt=0) {
+function parseObject(/**@type {Token[]}*/tokens, startAt = 0) {
     let i = startAt
     let fields = []
     while (tokens[i].type != 'right-brace') {
@@ -837,7 +818,7 @@ function parseObject(tokens, startAt=0) {
                 i--
             } else {
                 throw 'unexpected ' + tokens[i].type + ', expected colon at ' +
-                    describeLocation(tokens[i])
+                describeLocation(tokens[i])
             }
         } else if (tokens[i].type == 'left-paren') {
             // computed key: (.x | .y) : val
@@ -853,7 +834,7 @@ function parseObject(tokens, startAt=0) {
                 i--
             } else {
                 throw 'unexpected ' + tokens[i].type + ', expected colon at ' +
-                    describeLocation(tokens[i])
+                describeLocation(tokens[i])
             }
         } else if (tokens[i].type == 'variable') {
             // variable key: $x : val
@@ -875,12 +856,12 @@ function parseObject(tokens, startAt=0) {
                 i--
             } else {
                 throw 'unexpected ' + tokens[i].type + ', expected colon at ' +
-                    describeLocation(tokens[i])
+                describeLocation(tokens[i])
             }
         } else {
             throw 'unexpected ' + tokens[i].type + ' at ' +
-                describeLocation(tokens[i]) + ' in object at ' +
-                describeLocation(tokens[startAt - 1])
+            describeLocation(tokens[i]) + ' in object at ' +
+            describeLocation(tokens[startAt - 1])
         }
         i++
         // Consume a comma after a field
@@ -893,14 +874,16 @@ function parseObject(tokens, startAt=0) {
     }
 }
 
-function shuntingYard(stream) {
-    const prec = { '+' : 5, '-' : 5, '*' : 10, '/' : 10, '%' : 10,
-        '//' : 2, '==': 3, '!=': 3, '>': 3, '<': 3, '>=': 3, '<=': 3,
-        'and': 1, 'or': 0 }
+function shuntingYard(/**@type {Token[]}*/stream) {
+    const prec = {
+        '+': 5, '-': 5, '*': 10, '/': 10, '%': 10,
+        '//': 2, '==': 3, '!=': 3, '>': 3, '<': 3, '>=': 3, '<=': 3,
+        'and': 1, 'or': 0
+    }
     let output = []
     let operators = []
     for (let x of stream) {
-        if (x.type == 'op') {
+        if (x.type == 'op' && x.op) {
             while (operators.length && prec[operators[0].op] >= prec[x.op])
                 output.push(operators.shift())
             operators.unshift(x)
@@ -926,9 +909,10 @@ function shuntingYard(stream) {
         'and': AndOperator,
         'or': OrOperator,
     }
-    let stack = []
+    let stack = /**@type {Token []}*/([])
     for (let o of output) {
-        if (o.type == 'op') {
+        if (!o) { }
+        else if (o.type == 'op' && o.op) {
             let r = stack.pop()
             let l = stack.pop()
             stack.push(new constructors[o.op](l, r))
@@ -939,10 +923,10 @@ function shuntingYard(stream) {
     return stack[0]
 }
 
-function trace_helper(input, conf, dest, rest) {
+function trace_helper(/**@type {JQValue}*/input, /**@type {ParseConf}*/conf, /**@type {JQTrace[]}*/dest, /**@type {any[]}*/rest) {
     let filter = rest[0]
     for (let v of filter.apply(input, conf)) {
-        let next = []
+        let next = /**@type {JQTrace['next']}*/([])
         dest.push({
             node: filter,
             output: v,
@@ -955,7 +939,7 @@ function trace_helper(input, conf, dest, rest) {
     }
 }
 
-function sourced_trace_helper(input, conf, dest, rest) {
+function sourced_trace_helper(/**@type {JQValue}*/input, /**@type {ParseConf}*/conf, /**@type {JQTrace[]}*/dest, /**@type {any[]}*/rest) {
     let forward = []
     let src = this
     while (src.source) {
@@ -972,13 +956,14 @@ function sourced_trace_helper(input, conf, dest, rest) {
 
 // Convert a value to a consistent type name, addressing the issue
 // that arrays are objects.
-function nameType(o) {
+function nameType(/**@type {JQValue}*/o) {
     if (o === null) return 'null'
     if (typeof o == 'number') return 'number'
     if (typeof o == 'string') return 'string'
     if (typeof o == 'boolean') return 'boolean'
     if (o instanceof Array) return 'array'
     if (typeof o == 'object') return 'object'
+    throw `invalid type ${typeof o}`
 }
 
 // Parse node classes follow. Parse nodes are:
@@ -1017,8 +1002,10 @@ function nameType(o) {
 //   VariableReference, $x
 //   ReduceNode, reduce .[] as $x (0; . + $x)
 //   IfNode, if a then b elif c then d else e end
+/**@typedef {{variables: { [key: string]: JQValue }, userFuncArgs: { [key: string]: ParseNode } }} ParseConf */
+
 class ParseNode {
-    trace(input, conf, dest) {
+    trace(/**@type {JQValue}*/input, /**@type {ParseConf}*/conf, /**@type {{node:ParseNode,output:JQValue,next:[]}[]}*/dest) {
         for (let v of this.apply(input, conf)) {
             dest.push({
                 node: this,
@@ -1035,7 +1022,7 @@ class ParseNode {
      * function and variable definitions.
      * 
      * @param {JQValue} input 
-     * @param { {variables: { [key: string]: JQValue }, userFuncArgs: { [key: string]: ParseNode } } } conf
+     * @param { ParseConf } conf
      * @returns {IterableIterator<JQValue>}
      */
     * apply(input, conf) {
@@ -1043,7 +1030,7 @@ class ParseNode {
     }
 }
 class FilterNode extends ParseNode {
-    constructor(nodes) {
+    constructor(/**@type {ParseNode[]}*/nodes) {
         super()
         this.length = nodes.length
         let p = nodes.pop()
@@ -1052,14 +1039,15 @@ class FilterNode extends ParseNode {
             this.source = nodes.length == 1 ? nodes[0] : new FilterNode(nodes)
         }
     }
-    * apply(input, conf) {
+
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         if (!this.filter)
             return
         for (let v of this.source.apply(input, conf)) {
             yield* this.filter.apply(v, conf)
         }
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         if (!this.filter) {
             return []
         }
@@ -1075,29 +1063,26 @@ class FilterNode extends ParseNode {
     }
 }
 class IndexNode extends ParseNode {
-    constructor(lhs, index) {
+    constructor(/** @type { FilterNode } */lhs, /** @type { ParseNode } */index) {
         super()
         this.lhs = lhs
         this.index = index
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let l of this.lhs.apply(input, conf)) {
-            let t = nameType(l)
             for (let i of this.index.apply(input, conf)) {
-                if (t == 'array' && nameType(i) != 'number')
-                    throw 'Cannot index array with ' + nameType(i) + ' ' +
-                        JSON.stringify(i)
-                else if (t == 'object' && nameType(i) != 'string')
-                    throw 'Cannot index object with ' + nameType(i) + ' ' +
-                        JSON.stringify(i)
-                if (typeof i == 'number' && i < 0 && nameType(l) == 'array')
+                if (l instanceof Array && typeof i != 'number')
+                    throw 'Cannot index array with ' + nameType(i) + ' ' + JSON.stringify(i)
+                else if (l != null && typeof l == 'object' && typeof i != 'string')
+                    throw 'Cannot index object with ' + nameType(i) + ' ' + JSON.stringify(i)
+                if (typeof i == 'number' && i < 0 && l instanceof Array)
                     yield l[l.length + i]
-                else
+                else if (typeof i == 'number' && l instanceof Array)
                     yield typeof l[i] == 'undefined' ? null : l[i]
             }
         }
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let l of this.lhs.paths(input, conf))
             for (let a of this.index.apply(input, conf))
                 yield l.concat([a])
@@ -1107,13 +1092,13 @@ class IndexNode extends ParseNode {
     }
 }
 class SliceNode extends ParseNode {
-    constructor(lhs, from, to) {
+    constructor(/** @type {FilterNode}*/lhs, /** @type {ParseNode}*/from, /** @type {ParseNode}*/to) {
         super()
         this.lhs = lhs
         this.from = from
         this.to = to
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let l of this.lhs.apply(input, conf))
             for (let s of this.from.apply(input, conf)) {
                 if (s < 0) s += l.length
@@ -1123,38 +1108,36 @@ class SliceNode extends ParseNode {
                 }
             }
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let l of this.lhs.paths(input, conf))
             for (let a of this.from.apply(input, conf))
                 for (let b of this.to.apply(input, conf))
-                    yield l.concat([{start:a, end:b}])
+                    yield l.concat([{ start: a, end: b }])
     }
     toString() {
         return this.lhs.toString() + '[' + this.from.toString() + ':' + this.to.toString() + ']'
     }
 }
 class GenericIndex extends ParseNode {
-    constructor(innerNode) {
+    constructor(/** @type {ParseNode}*/innerNode) {
         super()
         this.index = innerNode
     }
-    * apply(input, conf) {
-        let t = nameType(input)
-        if (t == 'null') return yield null;
+    /**@returns {Generator<JQValue>} */
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
+        if (input == null) return yield null;
         for (let i of this.index.apply(input, conf)) {
-            if (t == 'array' && nameType(i) != 'number')
-                throw 'Cannot index array with ' + nameType(i) + ' ' +
-                    JSON.stringify(i)
-            else if (t == 'object' && nameType(i) != 'string')
-                throw 'Cannot index object with ' + nameType(i) + ' ' +
-                    JSON.stringify(i)
-            if (typeof i == 'number' && i < 0 && nameType(input) == 'array')
+            if (input instanceof Array && typeof i != 'number')
+                throw 'Cannot index array with ' + nameType(i) + ' ' + JSON.stringify(i)
+            else if (typeof input == "object" && typeof i != 'string')
+                throw 'Cannot index object with ' + nameType(i) + ' ' + JSON.stringify(i)
+            if (typeof i == 'number' && i < 0 && input instanceof Array)
                 yield input[input.length + i]
-            else
+            else if (typeof i == 'number' && input instanceof Array)
                 yield typeof input[i] == 'undefined' ? null : input[i]
         }
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let a of this.index.apply(input, conf))
             yield [a]
     }
@@ -1168,12 +1151,12 @@ class IdentifierIndex extends GenericIndex {
     }
 }
 class GenericSlice extends ParseNode {
-    constructor(fr, to) {
+    constructor(/** @type { ParseNode } */fr, /** @type { ParseNode } */to) {
         super()
         this.from = fr
         this.to = to
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQArray}*/input, /** @type { ParseConf } */conf) {
         for (let l of this.from.apply(input, conf)) {
             if (l < 0) l += input.length
             for (let r of this.to.apply(input, conf)) {
@@ -1183,10 +1166,10 @@ class GenericSlice extends ParseNode {
             }
         }
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let l of this.from.apply(input, conf))
             for (let r of this.to.apply(input, conf))
-                yield [{start: l, end: r}]
+                yield [{ start: l, end: r }]
     }
     toString() {
         return '.[' + this.from.toString() + ':' + this.to.toString() + ']'
@@ -1196,10 +1179,10 @@ class IdentityNode extends ParseNode {
     constructor() {
         super()
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         yield input
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         yield []
     }
     toString() {
@@ -1207,14 +1190,14 @@ class IdentityNode extends ParseNode {
     }
 }
 class ValueNode extends ParseNode {
-    constructor(v) {
+    constructor(/** @type {JQValue}*/v) {
         super()
         this.value = v
     }
     * apply() {
         yield this.value
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         yield this.value
     }
     toString() {
@@ -1222,20 +1205,21 @@ class ValueNode extends ParseNode {
     }
 }
 class StringNode extends ValueNode {
-    constructor(v) {
+    constructor(/** @type {string}*/v) {
         super(v)
     }
 }
 class StringLiteral extends ParseNode {
-    constructor(strings, interpolations) {
+    constructor(/** @type {string[]}*/strings, /** @type {ParseNode[]}*/interpolations) {
         super()
         this.strings = strings
         this.interpolations = interpolations
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         yield* this.applyEscape(input, formats.text, conf)
     }
-    * applyEscape(input, esc, conf, startAt=0) {
+    /**@return {Generator<string>} */
+    * applyEscape(/** @type {JQValue}*/input, /** @type {(v:string)=>string}*/esc,/**@type { ParseConf } */ conf, startAt = 0) {
         let s = this.strings[startAt]
         let i = this.interpolations[startAt]
         if (!i) return yield s
@@ -1256,15 +1240,15 @@ class StringLiteral extends ParseNode {
     }
 }
 class NumberNode extends ValueNode {
-    constructor(v) {
+    constructor(/**@type {JQValue}*/v) {
         super(v)
     }
     toString() {
-        return this.value.toString()
+        return String(this.value)
     }
 }
 class BooleanNode extends ValueNode {
-    constructor(v) {
+    constructor(/**@type {JQValue}*/v) {
         super(v)
     }
     toString() {
@@ -1272,31 +1256,31 @@ class BooleanNode extends ValueNode {
     }
 }
 class SpecificValueIterator extends ParseNode {
-    constructor(source) {
+    constructor(/**@type {FilterNode}*/source) {
         super()
         this.source = source
         this.filter = new GenericValueIterator()
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let o of this.source.apply(input, conf)) {
-            if (!['array', 'object'].includes(nameType(o)))
+            if (o == null || (!(o instanceof Array) && typeof o != 'object'))
                 throw 'cannot iterate over ' + nameType(o)
             yield* Object.values(o)
         }
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let [p, v] of this.zip(this.source.paths(input, conf),
-                this.source.apply(input, conf))) {
-                if (nameType(v) == 'array')
-                    for (let i = 0; i < v.length; i++)
-                        yield p.concat([i])
-                else
-                    for (let i of Object.keys(v)) {
-                        yield p.concat([i])
-                    }
+            this.source.apply(input, conf))) {
+            if (v instanceof Array)
+                for (let i = 0; i < v.length; i++)
+                    yield p.concat([i])
+            else
+                for (let i of Object.keys(v)) {
+                    yield p.concat([i])
+                }
         }
     }
-    * zip(a, b) {
+    * zip(/**@type {IterableIterator<JQValue>}*/a, /**@type {IterableIterator<JQValue>}*/b) {
         let aa = a[Symbol.iterator]()
         let bb = b[Symbol.iterator]()
         let v1 = aa.next()
@@ -1316,19 +1300,19 @@ class GenericValueIterator extends ParseNode {
     constructor() {
         super()
     }
-    * apply(input, conf) {
-        if (!['array', 'object'].includes(nameType(input)))
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
+        if (!(input instanceof Array) && typeof input != 'object')
             throw 'cannot iterate over ' + nameType(input)
-        if (nameType(input) == 'array')
+        if (input instanceof Array)
             yield* input
-        else
+        else if (input != null)
             yield* Object.values(input)
     }
-    * paths(input, conf) {
-        if (nameType(input) == 'array')
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
+        if (input instanceof Array)
             for (let i = 0; i < input.length; i++)
                 yield [i]
-        else
+        else if (input != null)
             for (let o of Object.keys(input))
                 yield [o]
     }
@@ -1341,11 +1325,11 @@ class CommaNode extends ParseNode {
         super()
         this.branches = branches
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let b of this.branches)
             yield* b.apply(input, conf)
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let b of this.branches)
             yield* b.paths(input, conf)
     }
@@ -1358,7 +1342,7 @@ class ArrayNode extends ParseNode {
         super()
         this.body = body
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         yield Array.from(this.body.apply(input, conf))
     }
     toString() {
@@ -1366,7 +1350,7 @@ class ArrayNode extends ParseNode {
     }
 }
 class PipeNode extends ParseNode {
-    constructor(lhs, rhs) {
+    constructor(/**@type {any}*/lhs, /**@type {any}*/rhs) {
         super()
         this.lhs = lhs
         this.rhs = rhs
@@ -1375,20 +1359,20 @@ class PipeNode extends ParseNode {
     toString() {
         return `${this.lhs} | ${this.rhs}`
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let v of this.lhs.apply(input, conf))
             for (let q of this.rhs.apply(v, conf))
                 yield q
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let [p, v] of this.zip(this.lhs.paths(input, conf),
-                this.lhs.apply(input, conf))) {
+            this.lhs.apply(input, conf))) {
             for (let p2 of this.rhs.paths(v, conf)) {
                 yield p.concat(p2)
             }
         }
     }
-    * zip(a, b) {
+    * zip(/**@type {IterableIterator<JQValue>}*/a, /**@type {IterableIterator<JQValue>}*/b) {
         let aa = a[Symbol.iterator]()
         let bb = b[Symbol.iterator]()
         let v1 = aa.next()
@@ -1399,9 +1383,9 @@ class PipeNode extends ParseNode {
             v2 = bb.next()
         }
     }
-    trace(input, conf, dest) {
+    trace(input, /** @type { ParseConf } */conf, /**@type {JQTrace[]}*/dest) {
         for (let v of this.lhs.apply(input, conf)) {
-            let next = []
+            let next = /**@type {JQTrace['next']}*/([])
             let more = {}
             if (this.lhs instanceof VariableBinding)
                 more.variableValue = conf.variables[this.lhs.name]
@@ -1421,11 +1405,11 @@ class ObjectNode extends ParseNode {
         super()
         this.fields = fields
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         let obj = {}
         let values = {}
         let keys = []
-        for (let {key, value} of this.fields) {
+        for (let { key, value } of this.fields) {
             for (let k of key.apply(input, conf)) {
                 keys.push(k)
                 values[k] = []
@@ -1447,34 +1431,32 @@ class ObjectNode extends ParseNode {
         }
     }
     toString() {
-        return '{' + this.fields.map(({key, value}) => key.toString() + ': ' + value.toString()).join(', ') + '}'
+        return '{' + this.fields.map(({ key, value }) => key.toString() + ': ' + value.toString()).join(', ') + '}'
     }
 }
 class RecursiveDescent extends ParseNode {
     constructor() {
         super()
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         yield* this.recurse(input)
     }
     * recurse(s) {
         yield s
-        let t = nameType(s)
-        if (t == 'array' || t == 'object')
+        if (s instanceof Array || (typeof s == 'object' && s != null))
             for (let v of Object.values(s))
                 yield* this.recurse(v)
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         yield* this.recursePaths(input, [])
     }
     * recursePaths(s, prefix) {
         yield prefix
-        let t = nameType(s)
-        if (t == 'array')
+        if (s instanceof Array)
             for (let i = 0; i < s.length; i++)
                 yield* this.recursePaths(s[i], prefix.concat([i]))
-        else if (t == 'object')
-            for (let [k,v] of Object.entries(s))
+        else if (typeof s == 'object' && s != null)
+            for (let [k, v] of Object.entries(s))
                 yield* this.recursePaths(v, prefix.concat([k]))
     }
     toString() {
@@ -1482,15 +1464,15 @@ class RecursiveDescent extends ParseNode {
     }
 }
 class OperatorNode extends ParseNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super()
         this.l = l
         this.r = r
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let rr of this.r.apply(input, conf))
             for (let ll of this.l.apply(input, conf))
-                yield this.combine(ll, rr, nameType(ll), nameType(rr))
+                yield this.combine(ll, rr)
     }
     trace(input, conf, dest) {
         for (let v of this.l.apply(input, conf)) {
@@ -1509,7 +1491,7 @@ class OperatorNode extends ParseNode {
                     next: next2,
                     subsidiary: 'right',
                 })
-                let result = this.combine(v, v2, nameType(v), nameType(v2))
+                let result = this.combine(v, v2)
                 let next3 = []
                 next2.push({
                     node: this,
@@ -1521,44 +1503,44 @@ class OperatorNode extends ParseNode {
     }
 }
 class AdditionOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {JQValue}*/l, /**@type {JQValue}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
-        if (lt == 'number' && rt == 'number')
+    combine(/**@type {JQValue}*/l, /**@type {JQValue}*/r) {
+        if (typeof l == 'number' && typeof r == 'number')
             return l + r
         if (l === null)
             return r
         if (r === null)
             return l
-        if (lt == 'string' && rt == 'string')
+        if (typeof l == 'string' && typeof r == 'string')
             return l + r
-        if (lt == 'array' && rt == 'array')
+        if (l instanceof Array && r instanceof Array)
             return l.concat(r)
-        if (lt == 'object' && rt == 'object')
+        if (typeof l == 'object' && typeof r == 'object')
             return Object.assign(Object.assign({}, l), r)
-        throw 'type mismatch in +:' + lt + ' and ' + rt + ' cannot be added'
+        throw 'type mismatch in +:' + nameType(l) + ' and ' + nameType(r) + ' cannot be added'
     }
     toString() {
         return this.l + ' + ' + this.r
     }
 }
 class MultiplicationOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
-        if (lt == 'number' && rt == 'number')
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
+        if (typeof l == 'number' && typeof r == 'number')
             return l * r
-        if (lt == 'number' && rt == 'string')
+        if (typeof l == 'number' && typeof r == 'string')
             return this.repeat(r, l)
-        if (lt == 'string' && rt == 'number')
+        if (typeof l == 'string' && typeof r == 'number')
             return this.repeat(l, r)
-        if (lt == 'object' && rt == 'object')
+        if (typeof l == 'object' && typeof r == 'object')
             return this.merge(Object.assign({}, l), r)
-        throw 'type mismatch in *:' + lt + ' and ' + rt + ' cannot be multiplied'
+        throw 'type mismatch in *:' + nameType(l) + ' and ' + nameType(r) + ' cannot be multiplied'
     }
-    repeat(s, n) {
+    repeat(/**@type {string}*/s, /**@type {number}*/n) {
         if (n == 0)
             return null;
         let r = []
@@ -1566,11 +1548,11 @@ class MultiplicationOperator extends OperatorNode {
             r.push(s)
         return r.join('')
     }
-    merge(l, r) {
+    merge(/**@type {any}*/l, /**@type {any}*/r) {
         for (let k of Object.keys(r)) {
             if (!l.hasOwnProperty(k))
                 l[k] = r[k]
-            else if (nameType(l[k]) != 'object' || nameType(r[k]) != 'object')
+            else if (typeof l[k] != 'object' || typeof r[k] != 'object')
                 l[k] = r[k]
             else
                 this.merge(l[k], r[k])
@@ -1582,55 +1564,55 @@ class MultiplicationOperator extends OperatorNode {
     }
 }
 class SubtractionOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
-        if (lt == 'number' && rt == 'number')
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
+        if (typeof l == 'number' && typeof r == 'number')
             return l - r
         if (l == null || r == null)
             throw 'type mismatch in -'
-        if (lt == 'array' && rt == 'array')
+        if (l instanceof Array && r instanceof Array)
             return l.filter(x => r.indexOf(x) == -1)
-        throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be subtracted'
+        throw 'type mismatch in -:' + nameType(l) + ' and ' + nameType(r) + ' cannot be subtracted'
     }
     toString() {
         return this.l + ' - ' + this.r
     }
 }
 class DivisionOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
-        if (lt == 'number' && rt == 'number')
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
+        if (typeof l == 'number' && typeof r == 'number')
             return l / r
-        if (lt == 'string' && rt == 'string')
+        if (typeof l == 'string' && typeof r == 'string')
             return l.split(r)
-        throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided'
+        throw 'type mismatch in -:' + nameType(l) + ' and ' + nameType(r) + ' cannot be divided'
     }
     toString() {
         return this.l + ' / ' + this.r
     }
 }
 class ModuloOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
-        if (lt == 'number' && rt == 'number')
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
+        if (typeof l == 'number' && typeof r == 'number')
             return l % r
-        throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided (remainder)'
+        throw 'type mismatch in -:' + nameType(l) + ' and ' + nameType(r) + ' cannot be divided (remainder)'
     }
     toString() {
         return this.l + ' % ' + this.r
     }
 }
 class LessThanOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
         return compareValues(l, r) < 0
     }
     toString() {
@@ -1638,10 +1620,10 @@ class LessThanOperator extends OperatorNode {
     }
 }
 class GreaterThanOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
         return compareValues(l, r) > 0
     }
     toString() {
@@ -1649,10 +1631,10 @@ class GreaterThanOperator extends OperatorNode {
     }
 }
 class LessEqualsOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
         return compareValues(l, r) <= 0
     }
     toString() {
@@ -1660,10 +1642,10 @@ class LessEqualsOperator extends OperatorNode {
     }
 }
 class GreaterEqualsOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
         return compareValues(l, r) >= 0
     }
     toString() {
@@ -1671,10 +1653,10 @@ class GreaterEqualsOperator extends OperatorNode {
     }
 }
 class AndOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
         return l !== false && l !== null && r !== false && r !== null
     }
     toString() {
@@ -1682,10 +1664,10 @@ class AndOperator extends OperatorNode {
     }
 }
 class OrOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
         return (l !== false && l !== null) || (r !== false && r !== null)
     }
     toString() {
@@ -1693,19 +1675,19 @@ class OrOperator extends OperatorNode {
     }
 }
 class EqualsOperator extends OperatorNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
-        if (lt != rt)
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
+        if (nameType(l) != nameType(r))
             return false
-        if (lt == 'number' || lt == 'string' || lt == 'boolean' || lt == 'null')
+        if (typeof l == 'number' || typeof l == 'string' || typeof l == 'boolean' || l == null)
             return l == r
-        if (lt == 'array') {
+        if (l instanceof Array) {
             if (l.length != r.length)
                 return false
             for (let i = 0; i < l.length; i++)
-                if (!this.combine(l[i], r[i], nameType(l[i]), nameType(r[i])))
+                if (!this.combine(l[i], r[i]))
                     return false
             return true
         }
@@ -1716,7 +1698,7 @@ class EqualsOperator extends OperatorNode {
         for (let k of lk) {
             if (!r.hasOwnProperty(k))
                 return false
-            if (!this.combine(l[k], r[k], nameType(l[k]), nameType(r[k])))
+            if (!this.combine(l[k], r[k]))
                 return false
         }
         return true
@@ -1726,23 +1708,23 @@ class EqualsOperator extends OperatorNode {
     }
 }
 class NotEqualsOperator extends EqualsOperator {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super(l, r)
     }
-    combine(l, r, lt, rt) {
-        return !super.combine(l, r, lt, rt)
+    combine(/**@type {any}*/l, /**@type {any}*/r) {
+        return !super.combine(l, r)
     }
     toString() {
         return this.l + ' != ' + this.r
     }
 }
 class AlternativeOperator extends ParseNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super()
         this.lhs = l
         this.rhs = r
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         let found = false
         for (let v of this.lhs.apply(input, conf)) {
             if (v !== null) found = true
@@ -1752,16 +1734,16 @@ class AlternativeOperator extends ParseNode {
             yield* this.rhs.apply(input, conf)
     }
     toString() {
-        return this.l + ' // ' + this.r
+        return this.lhs + ' // ' + this.rhs
     }
 }
 class UpdateAssignment extends ParseNode {
-    constructor(l, r) {
+    constructor(/**@type {any}*/l, /**@type {any}*/r) {
         super()
         this.l = l
         this.r = r
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         input = JSON.parse(JSON.stringify(input))
         for (let p of this.l.paths(input, conf)) {
             let it = this.r.apply(this.get(input, p), conf).next()
@@ -1783,7 +1765,7 @@ class UpdateAssignment extends ParseNode {
     }
     // Set the value at path p to v in obj,
     // or delete the key if del is true.
-    update(obj, p, v, del=false) {
+    update(obj, p, v, del = false) {
         if (obj === null && !del)
             obj = {}
         else if (obj === null)
@@ -1804,12 +1786,12 @@ class UpdateAssignment extends ParseNode {
     }
 }
 class PlainAssignment extends ParseNode {
-    constructor(l, r) {
+    constructor(/**@type {FilterNode}*/l, /**@type {StringLiteral}*/r) {
         super()
         this.l = l
         this.r = r
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let it of this.r.apply(input, conf)) {
             let innerInput = JSON.parse(JSON.stringify(input))
             for (let p of this.l.paths(innerInput, conf)) {
@@ -1819,7 +1801,7 @@ class PlainAssignment extends ParseNode {
         }
     }
     // Set the value at path p to v in obj
-    update(obj, p, v) {
+    update(/** @type {Record<string,any>} */obj, /** @type {string[]} */p, /** @type {any} */v) {
         if (obj === null)
             obj = {}
         let o = obj
@@ -1841,47 +1823,47 @@ class PlainAssignment extends ParseNode {
     }
 }
 class FunctionCall extends ParseNode {
-    constructor(fname, args) {
+    constructor(/** @type {string} */fname, /** @type { ParseNode[] } */args) {
         super()
         this.name = fname
         this.args = args
     }
-    apply(input, conf) {
+    apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         let func
         let ufa = conf.userFuncArgs[this.name]
         if (ufa)
-            func = function(input, conf, args) {
+            func = function (input, conf, args) {
                 return ufa.apply(input, conf)
             }
         else if (!func)
-            func = functions[this.name]
+            func = functions[this.name]?.func
         if (!func)
             throw 'no such function ' + this.name
         let argStack = []
         return func(input, conf, this.args)
     }
-    paths(input, conf) {
+    paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         let ufa = conf.userFuncArgs[this.name]
         if (ufa)
             return ufa.paths(input, conf)
-        let func = functions[this.name + '-paths']
+        let func = functions[this.name + '-paths']?.func
         if (!func)
             throw 'no paths for ' + this.name
         return func(input, conf, this.args)
     }
-    trace(input, conf, dest) {
+    trace(/**@type {JQValue}*/input, /**@type {ParseConf}*/conf, /**@type {JQTrace[]}*/dest) {
         if (this.args.length == 1 && !conf.userFuncArgs[this.name] && this.ordinary) {
-            let func = functions[this.name];
-            if (func.params && func.params.length > 0) {
-                if (func.params[0].mode == 'defer') {
+            let { func, ctx } = functions[this.name];
+            if (ctx?.params && ctx.params.length > 0) {
+                if (ctx.params[0].mode == 'defer') {
                     return super.trace(input, conf, dest)
                 }
             }
             for (let a1 of this.args[0].apply(input, conf)) {
-                let next = []
+                let next = /**@type {JQTrace['next']}*/([])
                 let paramLabel = 'arg1'
-                if (func.params && func.params.length > 0 && func.params[0].label)
-                    paramLabel = func.params[0].label;
+                if (ctx?.params && ctx.params.length > 0 && ctx.params[0].label)
+                    paramLabel = ctx.params[0].label;
                 dest.push({
                     node: this.args[0],
                     output: a1,
@@ -1889,23 +1871,23 @@ class FunctionCall extends ParseNode {
                     subsidiary: paramLabel
                 })
                 for (let result of func(input, conf, [new ValueYielder(a1)])) {
-                    let next2 = []
+                    let next2 = /**@type {JQTrace['next']}*/([])
                     next.push({
                         node: this,
                         output: result,
                         next: next2,
                     })
                 }
-            }    
+            }
         } else {
             return super.trace(input, conf, dest)
         }
     }
     get ordinary() {
-        let func = functions[this.name];
+        let { func, ctx } = functions[this.name];
         if (!func) return true;
-        if (func.params && func.params.length > 0) {
-            if (func.params[0].mode == 'defer') {
+        if (ctx?.params && ctx.params.length > 0) {
+            if (ctx.params[0].mode == 'defer') {
                 return false;
             }
         }
@@ -1919,12 +1901,12 @@ class FunctionCall extends ParseNode {
     }
 }
 class FormatNode extends ParseNode {
-    constructor(fname, quote) {
+    constructor(/** @type {string} */fname, /**@type {StringLiteral}*/quote) {
         super()
         this.name = fname
         this.string = quote
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         if (typeof this.string === 'undefined')
             return yield formats[this.name](input)
         yield* this.string.applyEscape(input, formats[this.name], conf)
@@ -1941,7 +1923,7 @@ class ErrorSuppression extends ParseNode {
         super()
         this.inner = inner
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         try {
             for (let o of this.inner.apply(input, conf))
                 if (o !== null)
@@ -1949,10 +1931,10 @@ class ErrorSuppression extends ParseNode {
         } catch {
         }
     }
-    * paths(input, conf) {
+    * paths(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         try {
-            for (let [o,p] of zip(this.inner.apply(input, conf),
-                    this.inner.paths(input, conf)))
+            for (let [o, p] of zip(this.inner.apply(input, conf),
+                this.inner.paths(input, conf)))
                 if (o !== null)
                     yield p
         } catch {
@@ -1963,12 +1945,12 @@ class ErrorSuppression extends ParseNode {
     }
 }
 class VariableBinding extends ParseNode {
-    constructor(lhs, name) {
+    constructor(/**@type {FilterNode}*/lhs, /**@type {string}*/name) {
         super()
         this.value = lhs
         this.name = name
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let v of this.value.apply(input, conf)) {
             conf.variables[this.name] = v
             yield input
@@ -1980,11 +1962,11 @@ class VariableBinding extends ParseNode {
     }
 }
 class VariableReference extends ParseNode {
-    constructor(name) {
+    constructor(/**@type {string}*/name) {
         super()
         this.name = name
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         yield conf.variables[this.name]
     }
     toString() {
@@ -1992,14 +1974,14 @@ class VariableReference extends ParseNode {
     }
 }
 class ReduceNode extends ParseNode {
-    constructor(generator, name, init, expr) {
+    constructor(/**@type {ParseNode}*/ generator, /**@type {string}*/ name, /**@type {ParseNode}*/init, /**@type {ParseNode}*/expr) {
         super()
         this.generator = generator
         this.name = name
         this.init = init
         this.expr = expr
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         // This uses all values of the initialiser, but only the
         // last value of the reduction expression is retained. This
         // seems to match jq proper's behaviour, but jq has odd
@@ -2019,7 +2001,7 @@ class ReduceNode extends ParseNode {
     }
 }
 class ForeachNode extends ParseNode {
-    constructor(generator, name, init, update, extract) {
+    constructor(/**@type {ParseNode}*/generator, /**@type {string}*/name, /**@type {ParseNode}*/init, /**@type {ParseNode}*/update, /**@type {IdentityNode}*/extract) {
         super()
         this.generator = generator
         this.name = name
@@ -2027,7 +2009,7 @@ class ForeachNode extends ParseNode {
         this.update = update
         this.extract = extract
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         for (let accum of this.init.apply(input, conf)) {
             for (let v of this.generator.apply(input, conf)) {
                 conf.variables[this.name] = v
@@ -2044,14 +2026,14 @@ class ForeachNode extends ParseNode {
     }
 }
 class IfNode extends ParseNode {
-    constructor(conditions, thens, elseBranch) {
+    constructor(/**@type {ParseNode[]}*/conditions, /**@type {ParseNode[]}*/thens, /**@type {ParseNode|null}*/elseBranch) {
         super()
         this.conditions = conditions
         this.thens = thens
         this.elseBranch = elseBranch
     }
-    * apply(input, conf) {
-        for (let [c,t] of zip(this.conditions, this.thens)) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
+        for (let [c, t] of zip(this.conditions, this.thens)) {
             for (let cond of c.apply(input, conf)) {
                 if (cond) {
                     for (let o of t.apply(input, conf))
@@ -2068,7 +2050,7 @@ class IfNode extends ParseNode {
     }
     toString() {
         let s = ''
-        for (let [c,t] of zip(this.conditions, this.thens))
+        for (let [c, t] of zip(this.conditions, this.thens))
             s += 'if ' + c + ' then ' + t + ' el'
         if (this.elseBranch) {
             return s + 'se ' + this.elseBranch + ' end'
@@ -2082,14 +2064,14 @@ class ValueYielder {
     constructor(v) {
         this.value = v
     }
-    * apply(input, conf) {
+    * apply(/** @type {JQValue}*/input, /** @type { ParseConf } */conf) {
         yield this.value
     }
     toString() {
         return this.value.toString()
     }
 }
-
+/**@type {Record<string,(v:any)=>string>} */
 const formats = {
     text(v) {
         if (typeof v == 'string')
@@ -2116,7 +2098,7 @@ const formats = {
         return decodeURIComponent(v)
     },
     csv(v) {
-        if (nameType(v) != 'array')
+        if (!(v instanceof Array))
             throw 'cannot csv-format ' + nameType(v) + ', only array'
         return v.map(x => {
             if (typeof x == 'string')
@@ -2130,7 +2112,7 @@ const formats = {
         }).join(',')
     },
     tsv(v) {
-        if (nameType(v) != 'array')
+        if (!(v instanceof Array))
             throw 'cannot tsv-format ' + nameType(v) + ', only array'
         return v.map(x => {
             if (typeof x == 'string')
@@ -2154,93 +2136,89 @@ const formats = {
         return atob(v)
     },
     sh(v) {
-        let t = nameType(v)
-        if (t == 'string')
-            return "'" + t.replace(/'/g, "'\\''") + "'"
-        else if (t == 'number')
+        if (typeof v == 'string')
+            return "'" + v.replace(/'/g, "'\\''") + "'"
+        else if (typeof v == 'number')
             return '' + v
-        else if (t == 'boolean')
+        else if (typeof v == 'boolean')
             return '' + v
         else if (v === null)
             return 'null'
-        else if (t === 'array') {
+        else if (v instanceof Array) {
             return v.map(v => {
-                let t = nameType(v)
-                if (t == 'string')
+                if (typeof v == 'string')
                     return "'" + v.replace(/'/g, "'\\''") + "'"
-                else if (t == 'number')
+                else if (typeof v == 'number')
                     return '' + v
-                else if (t == 'boolean')
+                else if (typeof v == 'boolean')
                     return '' + v
                 else if (v === null)
                     return 'null'
                 else
-                    throw t + ' cannot be escaped for shell'
+                    throw nameType(v) + ' cannot be escaped for shell'
             }).join(' ')
         } else
-            throw t + ' cannot be escaped for shell'
+            throw nameType(v) + ' cannot be escaped for shell'
     },
 }
-
+/**@template T @template U @param {T} func @param {U} [ctx]*/
+const mkfn = (func, ctx) => ({ func, ctx });
+/**@type {Record<string,{func:(i:JQValue,c:ParseConf,a:any[])=>Generator<JQValue>,ctx?:{params:{mode?:string,label?:string}[]}}>} */
 const functions = {
-    'tostring/0': function*(input) {
+    'tostring/0': mkfn(function* (input) {
         yield formats.text(input)
-    },
-    'empty/0': function*(input) {
-    },
-    'fromjson/0': function*(input) {
-        yield JSON.parse(input)
-    },
-    'path/1': Object.assign(function*(input, conf, args) {
+    }),
+    'empty/0': mkfn(function* (input) {
+    }),
+    'path/1': mkfn(function* (input, conf, args) {
         let f = args[0]
         yield* f.paths(input, conf)
-    }, {params: [{mode: 'defer'}]}),
-    'select/1': Object.assign(function*(input, conf, args) {
+    }, { params: [{ mode: 'defer' }] }),
+    'select/1': mkfn(function* (input, conf, args) {
         let selector = args[0]
         for (let b of selector.apply(input, conf))
             if (b !== false && b !== null)
                 yield input
-    }, {
-        params: [{label: 'predicate', mode: 'eval'}]
-    }),
-    'select/1-paths': function*(input, conf, args) {
+    }, { params: [{ label: 'predicate', mode: 'eval' }] }),
+    'select/1-paths': mkfn(function* (input, conf, args) {
         let selector = args[0]
         for (let b of selector.apply(input, conf))
             if (b !== false && b !== null)
                 yield []
-    },
-    'length/0': function*(input) {
-        let t = nameType(input)
-        if (t == 'string' || t == 'array')
+    }),
+    'length/0': mkfn(function* (input) {
+        if (typeof input == 'string' || input instanceof Array)
             return yield input.length
-        if (t == 'null') return yield 0
-        if (t == 'object') return yield Object.keys(input).length
-        throw 'cannot compute length of ' + t
-    },
-    'keys/0': function*(input) {
+        if (input == null) return yield 0
+        if (typeof input == 'object') return yield Object.keys(input).length
+        throw 'cannot compute length of ' + nameType(input)
+    }),
+    'keys/0': mkfn(function* (input) {
+        if (input == null)
+            throw 'null has no keys';
         yield* Object.keys(input).sort()
-    },
-    'has/1': Object.assign(function*(input, conf, args) {
+    }),
+    'has/1': mkfn(function* (input, conf, args) {
         let f = args[0]
         for (let k of f.apply(input, conf))
             yield input.hasOwnProperty(k)
-    }, {params: [{label: 'key'}]}),
-    'has/1-paths': function*(input, conf, args) {
+    }, { params: [{ label: 'key' }] }),
+    'has/1-paths': mkfn(function* (input, conf, args) {
         let f = args[0]
         for (let k of f.apply(input, conf))
             if (input.hasOwnProperty(k)) yield []
-    },
-    'in/1': Object.assign(function*(input, conf, args) {
+    }),
+    'in/1': mkfn(function* (input, conf, args) {
         let f = args[0]
         for (let o of f.apply(input, conf))
             yield o.hasOwnProperty(input)
-    }, {params: [{label: 'object'}]}),
-    'in/1-paths': function*(input, conf, args) {
+    }, { params: [{ label: 'object' }] }),
+    'in/1-paths': mkfn(function* (input, conf, args) {
         let f = args[0]
         for (let o of f.apply(input, conf))
             if (o.hasOwnProperty(input)) yield []
-    },
-    'contains/1': Object.assign(function*(input, conf, args) {
+    }),
+    'contains/1': mkfn(function* (input, conf, args) {
         let f = args[0]
         let t = nameType(input)
         for (let o of f.apply(input, conf)) {
@@ -2250,8 +2228,8 @@ const functions = {
             } else
                 yield containsHelper(input, o)
         }
-    }, {params: [{label: 'element'}]}),
-    'inside/1': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'element' }] }),
+    'inside/1': mkfn(function* (input, conf, args) {
         let f = args[0]
         let t = nameType(input)
         for (let o of f.apply(input, conf)) {
@@ -2261,146 +2239,143 @@ const functions = {
             } else
                 yield containsHelper(o, input)
         }
-    }, {params: [{label: 'container'}]}),
-    'to_entries/0': function*(input, conf) {
-        let t = nameType(input)
-        if (t == 'array') {
+    }, { params: [{ label: 'container' }] }),
+    'to_entries/0': mkfn(function* (input, conf) {
+        if (input instanceof Array) {
             let ret = []
             for (let i = 0; i < input.length; i++)
-                ret.push({key: i, value: input[i]})
+                ret.push({ key: i, value: input[i] })
             yield ret
-        } else if (t == 'object')
-            yield Object.entries(input).map(a => ({key: a[0], value: a[1]}))
+        } else if (typeof input == 'object' && input != null)
+            yield Object.entries(input).map(([key,value]) => ({ key, value }))
         else
-            throw 'cannot make entries from ' + t
-    },
-    'from_entries/0': function*(input, conf) {
-        let t = nameType(input)
-        if (t == 'array') {
+            throw 'cannot make entries from ' + nameType(input)
+    }),
+    'from_entries/0': mkfn(function* (input, conf) {
+        if (input instanceof Array) {
             let obj = {}
-            for (let {key, value} of input)
+            for (let { key, value } of input)
                 obj[key] = value
             yield obj
         } else
-            throw 'cannot use entries from ' + t
-    },
-    'type/0': function*(input) {
+            throw 'cannot use entries from ' + nameType(input)
+    }),
+    'type/0': mkfn(function* (input) {
         yield nameType(input)
-    },
-    'range/1': Object.assign(function*(input, conf, args) {
+    }),
+    'range/1': mkfn(function* (input, conf, args) {
         for (let m of args[0].apply(input, conf))
             for (let i = 0; i < m; i++)
                 yield i
-    }, {params: [{mode: 'defer'}]}),
-    'range/2': function*(input, conf, args) {
+    }, { params: [{ mode: 'defer' }] }),
+    'range/2': mkfn(function* (input, conf, args) {
         for (let min of args[0].apply(input, conf))
             for (let max of args[1].apply(input, conf))
                 for (let i = min; i < max; i++)
                     yield i
-    },
-    'range/3': function*(input, conf, args) {
+    }),
+    'range/3': mkfn(function* (input, conf, args) {
         for (let min of args[0].apply(input, conf))
             for (let max of args[1].apply(input, conf))
                 for (let step of args[2].apply(input, conf))
-                    for (let i = min; i < max; i+=step)
+                    for (let i = min; i < max; i += step)
                         yield i
-    },
-    'any/0': function*(input, conf) {
-        if (nameType(input) != 'array')
+    }),
+    'any/0': mkfn(function* (input, conf) {
+        if (!(input instanceof Array))
             throw 'any/0 requires array as input, not ' + nameType(input)
         for (let b of input)
             if (b) return yield true
         yield false
-    },
-    'any/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'array')
+    }),
+    'any/1': mkfn(function* (input, conf, args) {
+        if (!(input instanceof Array))
             throw 'any/1 requires array as input, not ' + nameType(input)
         for (let v of input)
             for (let b of args[0].apply(v, conf))
                 if (b) return yield true
         yield false
-    }, {params: [{mode: 'defer'}]}),
-    'any/2': function*(input, conf, args) {
+    }, { params: [{ mode: 'defer' }] }),
+    'any/2': mkfn(function* (input, conf, args) {
         let gen = args[0]
         let cond = args[1]
         for (let v of gen.apply(input, conf))
             for (let b of cond.apply(v, conf))
                 if (b) return yield true
         yield false
-    },
-    'all/0': function*(input, conf) {
-        if (nameType(input) != 'array')
+    }),
+    'all/0': mkfn(function* (input, conf) {
+        if (!(input instanceof Array))
             throw 'all/0 requires array as input, not ' + nameType(input)
         for (let b of input)
             if (!b) return yield false
         yield true
-    },
-    'all/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'array')
+    }),
+    'all/1': mkfn(function* (input, conf, args) {
+        if (!(input instanceof Array))
             throw 'all/1 requires array as input, not ' + nameType(input)
         for (let v of input)
             for (let b of args[0].apply(v, conf))
                 if (!b) return yield false
         yield true
-    }, {params: [{mode: 'defer'}]}),
-    'all/2': function*(input, conf, args) {
+    }, { params: [{ mode: 'defer' }] }),
+    'all/2': mkfn(function* (input, conf, args) {
         let gen = args[0]
         let cond = args[1]
         for (let v of gen.apply(input, conf))
             for (let b of cond.apply(v, conf))
                 if (!b) return yield false
         yield true
-    },
-    'add/0': function*(input, conf) {
-        if (nameType(input) != 'array')
+    }),
+    'add/0': mkfn(function* (input, conf) {
+        if (!(input instanceof Array))
             throw 'can only add up arrays'
         if (input.length == 0) return yield null
         if (input.length == 1) return yield input[0]
-        let ret = AdditionOperator.prototype.combine(input[0], input[1],
-            nameType(input[0]), nameType(input[1]))
+        let ret = AdditionOperator.prototype.combine(input[0], input[1])
         for (let i = 2; i < input.length; i++)
-            ret = AdditionOperator.prototype.combine(ret, input[i],
-                nameType(ret), nameType(input[i]))
+            ret = AdditionOperator.prototype.combine(ret, input[i])
         yield ret
-    },
-    'add/1': Object.assign(function*(input, conf, args) {
+    }),
+    'add/1': mkfn(function* (input, conf, args) {
         let sum = null;
         for (let addend of args[0].apply(input, conf)) {
-            sum = AdditionOperator.prototype.combine(sum, addend,
-                nameType(sum), nameType(addend))
+            sum = AdditionOperator.prototype.combine(sum, addend)
         }
         yield sum
-    }, {params: [{label: 'source'}]}),
-    'tonumber/0': function*(input) {
+    }, { params: [{ label: 'source' }] }),
+    'tonumber/0': mkfn(function* (input) {
         yield Number.parseFloat(input)
-    },
-    'toboolean/0': function*(input) {
+    }),
+    'toboolean/0': mkfn(function* (input) {
         if (input === "false" || input === false)
             yield false;
         else if (input === "true" || input === true)
             yield true;
         else
             throw `cannot convert ${nameType(input)} (${prettyPrint(input)}) to boolean`;
-    },
-    'tojson/0': function*(input) {
+    }),
+    'tojson/0': mkfn(function* (input) {
         yield JSON.stringify(input);
-    },
-    'fromjson/0': function*(input) {
+    }),
+    'fromjson/0': mkfn(function* (input) {
+        if (typeof input != 'string')
+            throw 'can only json parse string, not ' + nameType(input)
         yield JSON.parse(input);
-    },
-    'reverse/0': function*(input) {
-        if (nameType(input) != 'array')
+    }),
+    'reverse/0': mkfn(function* (input) {
+        if (!(input instanceof Array))
             throw 'can only reverse arrays, not ' + nameType(input)
         yield input.toReversed()
-    },
-    'sort/0': function*(input, conf) {
-        if (nameType(input) != 'array')
+    }),
+    'sort/0': mkfn(function* (input, conf) {
+        if (!(input instanceof Array))
             throw 'can only sort arrays, not ' + nameType(input)
         let r = Array.from(input)
         yield r.sort(compareValues)
-    },
-    'sort_by/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'array')
+    }),
+    'sort_by/1': mkfn(function* (input, conf, args) {
+        if (!(input instanceof Array))
             throw 'can only sort arrays, not ' + nameType(input)
         let key = args[0]
         let r = input.map(v => ({
@@ -2409,9 +2384,9 @@ const functions = {
         }))
         r.sort((a, b) => compareValues(a.key, b.key))
         yield r.map(a => a.value)
-    }, {params: [{mode: 'defer'}]}),
-    'group_by/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'array')
+    }, { params: [{ mode: 'defer' }] }),
+    'group_by/1': mkfn(function* (input, conf, args) {
+        if (!(input instanceof Array))
             throw 'group_by/1 requires array as input, not ' + nameType(input)
         let key = args[0]
         // Map input items to {key, value} pairs using the provided filter
@@ -2438,9 +2413,9 @@ const functions = {
             ret.push(currentGroup)
         }
         yield ret
-    }, {params: [{mode: 'defer'}]}),
-    'explode/0': function*(input, conf) {
-        if (nameType(input) != 'string')
+    }, { params: [{ mode: 'defer' }] }),
+    'explode/0': mkfn(function* (input, conf) {
+        if (typeof input != 'string')
             throw 'can only explode string, not ' + nameType(input)
         let ret = []
         for (let i = 0; i < input.length; i++) {
@@ -2450,21 +2425,21 @@ const functions = {
                 i++
         }
         yield ret
-    },
-    'implode/0': function*(input, conf) {
-        if (nameType(input) != 'array')
+    }),
+    'implode/0': mkfn(function* (input, conf) {
+        if (!(input instanceof Array))
             throw 'can only implode array, not ' + nameType(input)
         yield input.map(x => String.fromCodePoint(x)).join('')
-    },
-    'split/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'string')
+    }),
+    'split/1': mkfn(function* (input, conf, args) {
+        if (typeof input != 'string')
             throw 'can only split string, not ' + nameType(input)
         for (let s of args[0].apply(input, conf)) {
             yield input.split(s)
         }
-    }, {params: [{label: 'separator'}]}),
-    'split/2': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'string')
+    }, { params: [{ label: 'separator' }] }),
+    'split/2': mkfn(function* (input, conf, args) {
+        if (typeof input != 'string')
             throw 'can only split string, not ' + nameType(input)
         let flags = args[1] ? args[1].apply(input, conf).next().value : '';
         flags = makeFlagString(flags);
@@ -2472,17 +2447,17 @@ const functions = {
             let re = new RegExp(regex, flags);
             yield input.split(re);
         }
-    }, {params: [{label: 'regex'}, {label: 'flags'}]}),
-    'splits/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'string')
+    }, { params: [{ label: 'regex' }, { label: 'flags' }] }),
+    'splits/1': mkfn(function* (input, conf, args) {
+        if (typeof input != 'string')
             throw 'can only split string, not ' + nameType(input)
         for (let regex of args[0].apply(input, conf)) {
             let re = new RegExp(regex, 'u');
             yield* input.split(re);
         }
-    }, {params: [{label: 'regex'}, {label: 'flags'}]}),
-    'splits/2': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'string')
+    }, { params: [{ label: 'regex' }, { label: 'flags' }] }),
+    'splits/2': mkfn(function* (input, conf, args) {
+        if (typeof input != 'string')
             throw 'can only split string, not ' + nameType(input)
         let flags = args[1] ? args[1].apply(input, conf).next().value : '';
         flags = makeFlagString(flags);
@@ -2490,9 +2465,9 @@ const functions = {
             let re = new RegExp(regex, flags);
             yield* input.split(re);
         }
-    }, {params: [{label: 'regex'}, {label: 'flags'}]}),
-    'join/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'array')
+    }, { params: [{ label: 'regex' }, { label: 'flags' }] }),
+    'join/1': mkfn(function* (input, conf, args) {
+        if (!(input instanceof Array))
             throw 'can only join array, not ' + nameType(input)
         let a = input.map(x => {
             if (typeof x == 'number') return '' + x
@@ -2503,9 +2478,9 @@ const functions = {
         })
         for (let s of args[0].apply(input, conf))
             yield a.join(s)
-    }, {params: [{label: 'delimiter'}]}),
-    'getpath/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'object' && nameType(input) != 'array')
+    }, { params: [{ label: 'delimiter' }] }),
+    'getpath/1': mkfn(function* (input, conf, args) {
+        if (typeof input != 'object' && !(input instanceof Array))
             throw 'can only get path from objects and arrays, not ' + nameType(input)
         for (let path of args[0].apply(input, conf)) {
             let obj = input;
@@ -2519,16 +2494,16 @@ const functions = {
             }
             yield obj;
         }
-    }, {params: [{label: 'paths'}]}),
-    'setpath/2': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'object' && nameType(input) != 'array' && nameType(input) != 'null')
+    }, { params: [{ label: 'paths' }] }),
+    'setpath/2': mkfn(function* (input, conf, args) {
+        if (typeof input != 'object' && input != null)
             throw 'can only set path on objects and arrays, not ' + nameType(input)
         for (let path of args[0].apply(input, conf)) {
             let obj = JSON.parse(JSON.stringify(input));
             let current = obj;
             for (let key of path.slice(0, -1)) {
                 if (obj === null) {
-                    if (nameType(key) == 'number') {
+                    if (typeof key == 'number') {
                         obj = [];
                         current = obj;
                     } else {
@@ -2536,7 +2511,7 @@ const functions = {
                         current = obj;
                     }
                 } else if (!current.hasOwnProperty(key)) {
-                    if (nameType(key) == 'number')
+                    if (typeof key == 'number')
                         current[key] = [];
                     else
                         current[key] = {};
@@ -2546,7 +2521,7 @@ const functions = {
             for (let val of args[1].apply(input, conf)) {
                 let key = path[path.length - 1];
                 if (obj === null) {
-                    if (nameType(key) == 'number') {
+                    if (typeof key == 'number') {
                         obj = [];
                         current = obj;
                     } else {
@@ -2554,7 +2529,7 @@ const functions = {
                         current = obj;
                     }
                 } else if (!current.hasOwnProperty(key)) {
-                    if (nameType(key) == 'number')
+                    if (typeof key == 'number')
                         current = [];
                     else
                         current = {};
@@ -2563,9 +2538,9 @@ const functions = {
             }
             yield obj;
         }
-    }, {params: [{label: 'paths'}, {label: 'value'}]}),
-    'delpaths/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'object' && nameType(input) != 'array')
+    }, { params: [{ label: 'paths' }, { label: 'value' }] }),
+    'delpaths/1': mkfn(function* (input, conf, args) {
+        if (typeof input != 'object')
             throw 'can only delete paths from objects and arrays, not ' + nameType(input)
         for (let paths of args[0].apply(input, conf)) {
             let obj = JSON.parse(JSON.stringify(input));
@@ -2581,24 +2556,24 @@ const functions = {
             }
             yield obj;
         }
-    }, {params: [{label: 'paths'}]}),
-    'ltrim/0': Object.assign(function*(input, conf) {
-        if (nameType(input) != 'string')
+    }, { params: [{ label: 'paths' }] }),
+    'ltrim/0': mkfn(function* (input, conf) {
+        if (typeof input != 'string')
             throw 'can only trim strings, not ' + nameType(input)
-        yield input.trimLeft();
-    }, {params: []}),
-    'rtrim/0': Object.assign(function*(input, conf) {
-        if (nameType(input) != 'string')
+        yield input.trimStart();
+    }, { params: [] }),
+    'rtrim/0': mkfn(function* (input, conf) {
+        if (typeof input != 'string')
             throw 'can only trim strings, not ' + nameType(input)
-        yield input.trimRight();
-    }, {params: []}),
-    'trim/0': Object.assign(function*(input, conf) {
-        if (nameType(input) != 'string')
+        yield input.trimEnd();
+    }, { params: [] }),
+    'trim/0': mkfn(function* (input, conf) {
+        if (typeof input != 'string')
             throw 'can only trim strings, not ' + nameType(input)
         yield input.trim();
-    }, {params: []}),
-    'trimstr/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'string')
+    }, { params: [] }),
+    'trimstr/1': mkfn(function* (input, conf, args) {
+        if (typeof input != 'string')
             throw 'can only trim strings, not ' + nameType(input)
         for (let s of args[0].apply(input, conf)) {
             let str = input;
@@ -2610,9 +2585,9 @@ const functions = {
             }
             yield str;
         }
-    }, {params: [{label: 'str'}]}),
-    'ltrimstr/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'string')
+    }, { params: [{ label: 'str' }] }),
+    'ltrimstr/1': mkfn(function* (input, conf, args) {
+        if (typeof input != 'string')
             throw 'can only trim strings, not ' + nameType(input)
         for (let s of args[0].apply(input, conf)) {
             let str = input;
@@ -2621,9 +2596,9 @@ const functions = {
             }
             yield str;
         }
-    }, {params: [{label: 'str'}]}),
-    'rtrimstr/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'string')
+    }, { params: [{ label: 'str' }] }),
+    'rtrimstr/1': mkfn(function* (input, conf, args) {
+        if (typeof input != 'string')
             throw 'can only trim strings, not ' + nameType(input)
         for (let s of args[0].apply(input, conf)) {
             let str = input;
@@ -2632,34 +2607,34 @@ const functions = {
             }
             yield str;
         }
-    }, {params: [{label: 'str'}]}),
-    'first/0': function*(input, conf) {
-        if (nameType(input) != 'array')
+    }, { params: [{ label: 'str' }] }),
+    'first/0': mkfn(function* (input, conf) {
+        if (!(input instanceof Array))
             throw 'can only get first element of arrays, not ' + nameType(input)
         if (input.length == 0) return yield null
         yield input[0];
-    },
-    'last/0': Object.assign(function*(input, conf) {
-        if (nameType(input) != 'array')
+    }),
+    'last/0': mkfn(function* (input, conf) {
+        if (!(input instanceof Array))
             throw 'can only get last element of arrays, not ' + nameType(input)
         if (input.length == 0) return yield null
         yield input[input.length - 1];
-    }, {params: []}),
-    'nth/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'array')
+    }, { params: [] }),
+    'nth/1': mkfn(function* (input, conf, args) {
+        if (!(input instanceof Array))
             throw 'can only get nth element of arrays, not ' + nameType(input)
         if (input.length == 0) return yield null
         for (let n of args[0].apply(input, conf)) {
-            if (nameType(n) != 'number')
+            if (typeof n != 'number')
                 throw 'nth index must be a number, not ' + nameType(n)
             if (n < 0)
                 throw 'negative indices not supported for nth'
             yield input[n];
         }
-    }, {params: [{label: 'index'}]}),
-    'nth/2': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'index' }] }),
+    'nth/2': mkfn(function* (input, conf, args) {
         for (let n of args[0].apply(input, conf)) {
-            if (nameType(n) != 'number')
+            if (typeof n != 'number')
                 throw 'nth index must be a number, not ' + nameType(n)
             if (n < 0)
                 throw 'negative indices not supported for nth'
@@ -2671,25 +2646,25 @@ const functions = {
                 break;
             }
         }
-    }, {params: [{label: 'index'}, {label: 'expr', mode: 'defer'}]}),
-    'first/1': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'index' }, { label: 'expr', mode: 'defer' }] }),
+    'first/1': mkfn(function* (input, conf, args) {
         for (let n of args[0].apply(input, conf)) {
             return yield n;
         }
-    }, {params: [{label: 'generator'}]}),
-    'last/1': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'generator' }] }),
+    'last/1': mkfn(function* (input, conf, args) {
         let last = null
         for (let n of args[0].apply(input, conf)) {
             last = n;
         }
         yield last;
-    }, {params: [{label: 'generator'}]}),
-    'isempty/1': function*(input, conf, args) {
+    }, { params: [{ label: 'generator' }] }),
+    'isempty/1': mkfn(function* (input, conf, args) {
         for (let item of args[0].apply(input, conf))
             return yield false;
         return yield true;
-    },
-    'limit/2': Object.assign(function*(input, conf, args) {
+    }),
+    'limit/2': mkfn(function* (input, conf, args) {
         for (let n of args[0].apply(input, conf)) {
             let count = 0;
             for (let val of args[1].apply(input, conf)) {
@@ -2699,8 +2674,8 @@ const functions = {
                 count++;
             }
         }
-    }, {params: [{label: 'n'}, {label: 'expr'}]}),
-    'skip/2': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'n' }, { label: 'expr' }] }),
+    'skip/2': mkfn(function* (input, conf, args) {
         for (let n of args[0].apply(input, conf)) {
             let count = 0;
             for (let val of args[1].apply(input, conf)) {
@@ -2710,48 +2685,48 @@ const functions = {
                 count++;
             }
         }
-    }, {params: [{label: 'n'}, {label: 'expr'}]}),
-    'walk/1': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'n' }, { label: 'expr' }] }),
+    'walk/1': mkfn(function* (input, conf, args) {
         yield* walk(input, conf, args[0])
-    }, {params: [{label: 'generator'}]}),
-    'ascii_upcase/0': function*(input, conf) {
-        if (nameType(input) != 'string')
+    }, { params: [{ label: 'generator' }] }),
+    'ascii_upcase/0': mkfn(function* (input, conf) {
+        if (typeof input != 'string')
             throw 'can only convert strings to uppercase, not ' + nameType(input)
         yield input.replace(/./g, (x) => { if (x.charCodeAt(0) >= 97 && x.charCodeAt(0) <= 122) return x.toUpperCase(); return x; });
-    },
-    'ascii_downcase/0': function*(input, conf) {
-        if (nameType(input) != 'string')
+    }),
+    'ascii_downcase/0': mkfn(function* (input, conf) {
+        if (typeof input != 'string')
             throw 'can only convert strings to lowercase, not ' + nameType(input)
         yield input.replace(/./g, (x) => { if (x.charCodeAt(0) >= 65 && x.charCodeAt(0) <= 90) return x.toLowerCase(); return x; });
-    },
-    'sub/2': Object.assign(function*(input, conf, args) {
+    }),
+    'sub/2': mkfn(function* (input, conf, args) {
         yield* sub(input, conf, args[0], args[1]);
-    }, {params: [{label: 'regex'}, {label: 'tostring'}]}),
-    'sub/3': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'regex' }, { label: 'tostring' }] }),
+    'sub/3': mkfn(function* (input, conf, args) {
         let flags = args[2].apply(input, conf).next().value || '';
         yield* sub(input, conf, args[0], args[1], flags);
-    }, {params: [{label: 'regex'}, {label: 'tostring'}, {label: 'flags'}]}),
-    'gsub/2': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'regex' }, { label: 'tostring' }, { label: 'flags' }] }),
+    'gsub/2': mkfn(function* (input, conf, args) {
         return yield* sub(input, conf, args[0], args[1], 'g')
-    }, {params: [{label: 'regex'}, {label: 'tostring'}]}),
-    'gsub/3': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'regex' }, { label: 'tostring' }] }),
+    'gsub/3': mkfn(function* (input, conf, args) {
         let flags = args[2].apply(input, conf).next().value || 'g';
         yield* sub(input, conf, args[0], args[1], flags);
-    }, {params: [{label: 'regex'}, {label: 'tostring'}, {label: 'flags'}]}),
-    'test/1': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'regex' }, { label: 'tostring' }, { label: 'flags' }] }),
+    'test/1': mkfn(function* (input, conf, args) {
         for (let regexp of args[0].apply(input, conf)) {
             let re = new RegExp(regexp, "u");
             yield re.test(input);
         }
-    }, {params: [{label: 'regex'}]}),
-    'test/2': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'regex' }] }),
+    'test/2': mkfn(function* (input, conf, args) {
         let flags = args[0].apply(input, conf).next().value || '';
         for (let regexp of args[0].apply(input, conf)) {
             let re = new RegExp(regexp, makeFlagString(flags));
             yield re.test(input);
         }
-    }, {params: [{label: 'regex'}, {label: 'flags'}]}),
-    'capture/1': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'regex' }, { label: 'flags' }] }),
+    'capture/1': mkfn(function* (input, conf, args) {
         for (let regexp of args[0].apply(input, conf)) {
             let re = new RegExp(regexp, "u");
             let match = re.exec(input);
@@ -2759,8 +2734,8 @@ const functions = {
                 yield match.groups;
             }
         }
-    }, {params: [{label: 'regex'}]}),
-    'capture/2': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'regex' }] }),
+    'capture/2': mkfn(function* (input, conf, args) {
         let flags = args[1].apply(input, conf).next().value || '';
         flags = makeFlagString(flags);
         for (let regexp of args[0].apply(input, conf)) {
@@ -2770,8 +2745,8 @@ const functions = {
                 yield match.groups;
             }
         }
-    }, {params: [{label: 'regex'}, {label: 'flags'}]}),
-    'match/1': Object.assign(function*(input, conf, args) {
+    }, { params: [{ label: 'regex' }, { label: 'flags' }] }),
+    'match/1': mkfn(function* (input, conf, args) {
         let flags = 'u';
         if (args[1]) {
             flags = makeFlagString(args[1].apply(input, conf).next().value || '');
@@ -2787,14 +2762,16 @@ const functions = {
                     offset: match.index,
                     length: match[0].length,
                     string: match[0],
-                    captures: []
+                    captures: ([])
                 };
                 for (let i = 1; i < match.length; i++) {
+                    if (!match.indices)
+                        continue;
                     if (!match.indices[i])
                         continue;
                     let name = null;
                     if (match.indices.groups) {
-                        for (let [k,v] of Object.entries(match.indices.groups)) {
+                        for (let [k, v] of Object.entries(match.indices.groups)) {
                             if (match.indices[i][0] == v[0] && match.indices[i][1] == v[1]) {
                                 name = k;
                                 break;
@@ -2814,8 +2791,8 @@ const functions = {
                     break;
             }
         }
-    }, {params: [{label: 'regex'}]}),
-    'scan/2': function*(input, conf, args) {
+    }, { params: [{ label: 'regex' }] }),
+    'scan/2': mkfn(function* (input, conf, args) {
         for (let re of args[0].apply(input, conf)) {
             for (let flags of args[1].apply(input, conf)) {
                 if (flags.includes('g')) flags = flags.gsub('g', '');
@@ -2830,8 +2807,8 @@ const functions = {
                 }
             }
         }
-    },
-    'recurse/2': function*(input, conf, args) {
+    }),
+    'recurse/2': mkfn(function* (input, conf, args) {
         let gen = args[0];
         let cond = args[1];
         yield input;
@@ -2847,95 +2824,88 @@ const functions = {
                 }
             }
         }
-    },
-    'unique/0': function*(input) {
-        if (nameType(input) != 'array')
+    }),
+    'unique/0': mkfn(function* (input) {
+        if (!(input instanceof Array))
             throw 'can only unique arrays, not ' + nameType(input)
 
         let arr = Array.from(input).sort(compareValues)
         let ret = []
         for (let i = 0; i < arr.length; i++) {
-            if (i === 0 || compareValues(arr[i], arr[i-1]) !== 0) {
+            if (i === 0 || compareValues(arr[i], arr[i - 1]) !== 0) {
                 ret.push(arr[i])
             }
         }
         yield ret
-    },
-    'todate/0': function*(input) {
-        let date;
-        let t = nameType(input);
-
-        if (t === 'number') {
-            date = new Date(input * 1000);
-        } else {
-            throw 'todate/0 only takes numbers, not ' + t;
+    }),
+    'todate/0': mkfn(function* (input) {
+        if (typeof input != 'number') {
+            throw 'todate/0 only takes numbers, not ' + nameType(input);
         }
+        let date = new Date(input * 1000);
         // jq does not include fractional seconds in these
         yield date.toISOString().slice(0, -5) + 'Z';
-    },
-    'fromdateiso8601/0': function*(input) {
-        let date;
-        let t = nameType(input);
-
-        if (t === 'string') {
-            date = new Date(input);
-        } else {
-            throw 'fromdate/0 only takes strings, not ' + t;
-        }
-
-        yield date / 1000;
-    },
-    'now/0': function*(input) {
-        yield new Date() / 1000;
-    },
-    'builtins/0': function*(input) {
+    }),
+    'fromdateiso8601/0': mkfn(function* (input) {
+        if (typeof input != 'string')
+            throw 'fromdate/0 only takes strings, not ' + nameType(input);
+        yield +new Date(input) / 1000;
+    }),
+    'now/0': mkfn(function* (input) {
+        yield +new Date() / 1000;
+    }),
+    'builtins/0': mkfn(function* (input) {
         yield Object.keys(functions);
-    },
-    'isinfinite/0': function*(input) {
+    }),
+    'isinfinite/0': mkfn(function* (input) {
         yield !Number.isFinite(input);
-    },
-    'isfinite/0': function*(input) {
+    }),
+    'isfinite/0': mkfn(function* (input) {
         yield Number.isFinite(input);
-    },
-    'isnan/0': function*(input) {
+    }),
+    'isnan/0': mkfn(function* (input) {
         yield Number.isNaN(input);
-    },
-    'isnormal/0': function*(input) {
+    }),
+    'isnormal/0': mkfn(function* (input) {
         yield Number.isFinite(input) && !Number.isNaN(input);
-    },
-    'infinite/0': function*(input) {
+    }),
+    'infinite/0': mkfn(function* (input) {
         yield Number.POSITIVE_INFINITY;
-    },
-    'nan/0': function*(input) {
+    }),
+    'nan/0': mkfn(function* (input) {
         yield Number.NaN;
-    },
-    'endswith/1': function*(input, conf, args) {
+    }),
+    'endswith/1': mkfn(function* (input, conf, args) {
+        if (typeof input != 'string')
+            throw 'endswith/1 apply to strings, not ' + nameType(input);
         for (let v of args[0].apply(input, conf))
             yield input.endsWith(v);
-    },
-    'startswith/1': function*(input, conf, args) {
+    }),
+    'startswith/1': mkfn(function* (input, conf, args) {
+        if (typeof input != 'string')
+            throw 'startswith/1 apply to strings, not ' + nameType(input);
         for (let v of args[0].apply(input, conf))
             yield input.startsWith(v);
-    },
-    'not/0': function*(input) {
+    }),
+    'not/0': mkfn(function* (input) {
         yield !input;
-    },
-    'abs/0': function*(input) {
+    }),
+    'abs/0': mkfn(function* (input) {
         if (compareValues(input, 0) < 0) {
             yield -input;
         } else {
             yield input;
         }
-    },
-    'max/0': function*(input) {
+    }),
+    'max/0': mkfn(function* (input) {
         let best = null;
         for (let o of input) {
             if (compareValues(o, best) > 0)
                 best = o;
         }
         yield best;
-    },
-    'min/0': function*(input) {
+    }),
+    'min/0': mkfn(function* (input) {
         let best = undefined;
         for (let o of input) {
             if (typeof best === 'undefined')
@@ -2945,8 +2915,8 @@ const functions = {
         }
         if (typeof best === 'undefined') best = null;
         yield best;
-    },
-    'max_by/1': function*(input, conf, args) {
+    }),
+    'max_by/1': mkfn(function* (input, conf, args) {
         let best = null;
         let best_by = null;
         for (let o of input) {
@@ -2962,8 +2932,8 @@ const functions = {
             }
         }
         yield best;
-    },
-    'min_by/1': function*(input, conf, args) {
+    }),
+    'min_by/1': mkfn(function* (input, conf, args) {
         let best = undefined;
         let best_by = null;
         for (let o of input) {
@@ -2978,10 +2948,9 @@ const functions = {
             }
         }
         yield best;
-    },
-    'indices/1': function*(input, conf, args) {
-        const itype = nameType(input);
-        if (itype == 'string') {
+    }),
+    'indices/1': mkfn(function* (input, conf, args) {
+        if (typeof input == 'string') {
             for (let needle of args[0].apply(input, conf)) {
                 let ret = [];
                 let pos = input.indexOf(needle);
@@ -2991,10 +2960,10 @@ const functions = {
                 }
                 yield ret;
             }
-        } else if (itype == 'array') {
+        } else if (input instanceof Array) {
             for (let needle of args[0].apply(input, conf)) {
                 let ret = [];
-                if (nameType(needle) == 'array') {
+                if (needle instanceof Array) {
                     outer: for (let i = 0; i < input.length - needle.length; i++) {
                         for (let j = 0; j < needle.length; j++)
                             if (compareValues(input[i + j], needle[j]) != 0)
@@ -3009,24 +2978,23 @@ const functions = {
                 }
                 yield ret;
             }
-        } else if (itype == 'object') {
+        } else if (typeof input == 'object' && input != null) {
             // This matches upstream behaviour, but no documentation or reason
             for (let needle of args[0].apply(input, conf))
                 yield input[needle] ?? null;
         } else {
-            throw 'cannot index ' + itype
+            throw 'cannot index ' + nameType(input);
         }
-    },
-    'index/1': function*(input, conf, args) {
-        const itype = nameType(input);
-        if (itype == 'string') {
+    }),
+    'index/1': mkfn(function* (input, conf, args) {
+        if (typeof input == 'string') {
             for (let needle of args[0].apply(input, conf)) {
                 let pos = input.indexOf(needle);
                 if (pos >= 0) yield pos; else yield null;
             }
-        } else if (itype == 'array') {
+        } else if (input instanceof Array) {
             for (let needle of args[0].apply(input, conf)) {
-                if (nameType(needle) == 'array') {
+                if (needle instanceof Array) {
                     outer: for (let i = 0; i < input.length - needle.length; i++) {
                         for (let j = 0; j < needle.length; j++)
                             if (compareValues(input[i + j], needle[j]) != 0)
@@ -3040,17 +3008,16 @@ const functions = {
                 }
             }
         }
-    },
-    'rindex/1': function*(input, conf, args) {
-        const itype = nameType(input);
-        if (itype == 'string') {
+    }),
+    'rindex/1': mkfn(function* (input, conf, args) {
+        if (typeof input == 'string') {
             for (let needle of args[0].apply(input, conf)) {
                 let pos = input.lastIndexOf(needle);
                 if (pos >= 0) yield pos; else yield null;
             }
-        } else if (itype == 'array') {
+        } else if (input instanceof Array) {
             for (let needle of args[0].apply(input, conf)) {
-                if (nameType(needle) == 'array') {
+                if (needle instanceof Array) {
                     outer: for (let i = input.length - needle.length - 1; i >= 0; i--) {
                         for (let j = 0; j < needle.length; j++)
                             if (compareValues(input[i + j], needle[j]) != 0)
@@ -3064,20 +3031,20 @@ const functions = {
                 }
             }
         }
-    },
-    'flatten/0': function*(input) {
-        if (nameType(input) != 'array')
+    }),
+    'flatten/0': mkfn(function* (input) {
+        if (!(input instanceof Array))
             throw 'can only flatten array, not ' + nameType(input);
         yield input.flat(Number.POSITIVE_INFINITY)
-    },
-    'flatten/1': function*(input, conf, args) {
-        if (nameType(input) != 'array')
+    }),
+    'flatten/1': mkfn(function* (input, conf, args) {
+        if (!(input instanceof Array))
             throw 'can only flatten array, not ' + nameType(input);
         for (let depth of args[0].apply(input, conf))
             yield input.flat(depth);
-    },
-    'transpose/0': function*(input) {
-        if (nameType(input) != 'array')
+    }),
+    'transpose/0': mkfn(function* (input) {
+        if (!(input instanceof Array))
             throw 'can only transpose array, not ' + nameType(input);
         let size = Math.max(...input.map(x => x.length));
         let ret = [];
@@ -3088,9 +3055,9 @@ const functions = {
                 row.push(input[x][y] ?? null)
         }
         yield ret;
-    },
-    'combinations/0': function*(input) {
-        function* helper(sofar, i) {
+    }),
+    'combinations/0': mkfn(function* (input) {
+        function* helper(/**@type {Array<any>}*/sofar, i=0) {
             let arr = input[i];
             if (arr === undefined)
                 return yield sofar;
@@ -3099,9 +3066,9 @@ const functions = {
                 yield* helper(pfx, i + 1);
             }
         }
-        yield* helper([], 0);
-    },
-    'while/2': function*(input, conf, args) {
+        yield* helper([]);
+    }),
+    'while/2': mkfn(function* (input, conf, args) {
         const cond = args[0];
         const update = args[1];
         let queue = [input];
@@ -3115,8 +3082,8 @@ const functions = {
                 queue.unshift(...outs);
             }
         }
-    },
-    'until/2': function*(input, conf, args) {
+    }),
+    'until/2': mkfn(function* (input, conf, args) {
         const cond = args[0];
         const update = args[1];
         let queue = [input];
@@ -3131,7 +3098,7 @@ const functions = {
                 queue.unshift(...outs);
             }
         }
-    },
+    }),
 }
 
 functions['match/2'] = functions['match/1'];
@@ -3141,26 +3108,28 @@ functions['fromdate/0'] = functions['fromdateiso8601/0'];
 // Define mathematical functions jq supports that are in the JavaScript Math
 // object. First, single-argument functions correspond to /0 functions on
 // their input.
-for (let mf of [ 'acos', 'acosh', 'asin', 'asinh', 'atan', 'atanh', 'cbrt', 'ceil', 'cos', 'cosh', 'erf', 'erfc', 'exp', 'exp10', 'exp2', 'expm1', 'fabs', 'floor', 'gamma', 'j0', 'j1', 'lgamma', 'log', 'log10', 'log1p', 'log2', 'logb', 'nearbyint', 'rint', 'round', 'significand', 'sin', 'sinh', 'sqrt', 'tan', 'tanh', 'tgamma', 'trunc', 'y0', 'y1']) {
-    if (mf in Math) {
-        functions[mf + '/0'] = function*(input) {
-            yield Math[mf](input)
-        }
-    }
+// unsupported: 'erf', 'erfc', 'exp10', 'exp2', 'fabs', 'gamma', 'j0', 'j1', 'lgamma', 'logb', 'nearbyint', 'rint', 'significand', 'tgamma', 'y0', 'y1'
+for (let mf of /**@type {const}*/(['acos', 'acosh', 'asin', 'asinh', 'atan', 'atanh', 'cbrt', 'ceil', 'cos', 'cosh', 'exp', 'expm1', 'floor', 'log', 'log10', 'log1p', 'log2', 'round', 'sin', 'sinh', 'sqrt', 'tan', 'tanh', 'trunc'])) {
+    functions[mf + '/0'] = mkfn(function* (input) {
+        if (typeof input != 'number')
+            throw mf + ' require a number, not ' + nameType(input);;
+        yield Math[mf](input)
+    })
 }
-functions['fabs/0'] = function*(input) { yield Math.abs(input); }
+functions['fabs/0'] = mkfn(function* (input) {
+    if (typeof input != 'number')
+        throw 'fabs require a number, not ' + nameType(input);;
+    yield Math.abs(input);
+})
 
 // Two-argument functions correspond to /2 functions that ignore their input.
-for (let mf of ['atan2', 'copysign', 'drem', 'fdim', 'fmax', 'fmin', 'fmod', 'frexp', 'hypot', 'jn', 'ldexp', 'modf', 'nextafter', 'nexttoward', 'pow', 'remainder', 'scalb', 'scalbln', 'yn']) {
-    let mathName = mf;
-    if (mf.startsWith('f') && !(mf in Math)) mathName = mf.substring(1);
-    if (mathName in Math) {
-        functions[mf + '/2'] = function*(input, conf, args) {
-            for (let a1 of args[0].apply(input, conf))
-                for (let a2 of args[1].apply(input, conf))
-                    yield Math[mathName](a1, a2);
-        }
-    }
+// unsupported: 'copysign', 'drem', 'fdim', 'jn', 'ldexp', 'modf', 'nextafter', 'nexttoward', 'remainder', 'scalb', 'scalbln', 'yn', 'fmod'
+for (let [jf, mf] of (Object.entries(/**@type {const}*/({ atan2: 'atan2', hypot: 'hypot', pow: 'pow', fmax: 'max', fmin: 'min', frexp: 'exp' })))) {
+    functions[jf + '/2'] = mkfn(function* (input, conf, args) {
+        for (let a1 of args[0].apply(input, conf))
+            for (let a2 of args[1].apply(input, conf))
+                yield Math[mf](a1, a2);
+    })
 }
 
 /**
@@ -3181,7 +3150,7 @@ for (let mf of ['atan2', 'copysign', 'drem', 'fdim', 'fmax', 'fmin', 'fmod', 'fr
  * @param {any} replacementExpr A stream to evaluate for each replacement
  * @param {string} flags The flags to use for the regular expression
  * */
-function* sub(input, conf, regexpExpr, replacementExpr, flags='') {
+function* sub(input, conf, regexpExpr, replacementExpr, flags = '') {
     flags = makeFlagString(flags);
     for (let regexp of regexpExpr.apply(input, conf)) {
         let re = new RegExp(regexp, flags);
@@ -3236,7 +3205,7 @@ function* sub(input, conf, regexpExpr, replacementExpr, flags='') {
 // out of a jq (Oniguruma) flag string.
 // Always uses /u for whole-codepoint matching, and
 // translates other flags where there are close analogues.
-function makeFlagString(flags) {
+function makeFlagString(/**@type {string?}*/flags) {
     let flagParts = ['u'];
     if (flags === null)
         return 'u';
@@ -3259,15 +3228,15 @@ function makeFlagString(flags) {
 // When the provided function has multiple outputs, only the
 // first output is used when setting an object's field values,
 // but all are collected in other cases.
-function* walk(input, conf, expr) {
-    if (nameType(input) == 'array') {
+function* walk(/**@type {JQValue}*/input, /**@type {ParseConf}*/conf, expr) {
+    if (input instanceof Array) {
         let arr = [];
         for (let v of input) {
             arr.push(...walk(v, conf, expr));
         }
         return yield* expr.apply(arr, conf);
-    } else if (nameType(input) == 'object') {
-        let obj = {};
+    } else if (typeof input == 'object' && input != null) {
+        let obj = /**@type {Record<string,string>}*/({});
         for (let k of Object.keys(input)) {
             for (let v of walk(input[k], conf, expr)) {
                 obj[k] = v;
@@ -3287,14 +3256,12 @@ function* walk(input, conf, expr) {
 // * All others, if they are equal.
 // This helper function is necessary because the recursive case
 // has different error behaviour to the user-exposed function.
-function containsHelper(haystack, needle) {
-    let haystackType = nameType(haystack)
-    let needleType = nameType(needle)
-    if (haystackType != needleType) {
+function containsHelper(/**@type {JQValue}*/haystack, /**@type {JQValue}*/needle) {
+    if (nameType(haystack) != nameType(needle)) {
         return false
-    } else if (haystackType == 'string') {
+    } else if (typeof haystack == 'string' && typeof needle == 'string') {
         return (haystack.indexOf(needle) != -1)
-    } else if (haystackType == 'array') {
+    } else if (haystack instanceof Array && needle instanceof Array) {
         for (let b of needle) {
             let found = false
             for (let a of haystack) {
@@ -3307,7 +3274,7 @@ function containsHelper(haystack, needle) {
                 return false
         }
         return true
-    } else if (haystackType == 'object') {
+    } else if (typeof haystack == 'object' && typeof needle == 'object' && haystack != null && needle !== null) {
         for (let k of Object.keys(needle)) {
             if (!haystack.hasOwnProperty(k))
                 return false
@@ -3320,36 +3287,36 @@ function containsHelper(haystack, needle) {
     }
 }
 
-defineShorthandFunction('map', 'f', '[.[] | f]')
-defineShorthandFunction('map_values', 'f', '.[] |= f')
-defineShorthandFunction('del', 'p', 'p |= empty')
-defineShorthandFunction('with_entries', 'w', 'to_entries | map(w) | from_entries')
-defineShorthandFunction('arrays', '', 'select(type == "array")')
-defineShorthandFunction('objects', '', 'select(type == "object")')
-defineShorthandFunction('booleans', '', 'select(type == "boolean")')
-defineShorthandFunction('strings', '', 'select(type == "string")')
-defineShorthandFunction('numbers', '', 'select(type == "number")')
-defineShorthandFunction('normals', '', 'select(type == "number" and isnormal)')
-defineShorthandFunction('finites', '', 'select(type == "number" and isfinite)')
-defineShorthandFunction('nulls', '', 'select(type == "null")')
-defineShorthandFunction('values', '', 'select(type != "null")')
-defineShorthandFunction('iterables', '', 'select(type == "array" or type == "object")')
-defineShorthandFunction('scalars', '', 'select(type != "array" and type != "object")')
+defineShorthandFunction('map', ['f'], '[.[] | f]')
+defineShorthandFunction('map_values', ['f'], '.[] |= f')
+defineShorthandFunction('del', ['p'], 'p |= empty')
+defineShorthandFunction('with_entries', ['w'], 'to_entries | map(w) | from_entries')
+defineShorthandFunction('arrays', [''], 'select(type == "array")')
+defineShorthandFunction('objects', [''], 'select(type == "object")')
+defineShorthandFunction('booleans', [''], 'select(type == "boolean")')
+defineShorthandFunction('strings', [''], 'select(type == "string")')
+defineShorthandFunction('numbers', [''], 'select(type == "number")')
+defineShorthandFunction('normals', [''], 'select(type == "number" and isnormal)')
+defineShorthandFunction('finites', [''], 'select(type == "number" and isfinite)')
+defineShorthandFunction('nulls', [''], 'select(type == "null")')
+defineShorthandFunction('values', [''], 'select(type != "null")')
+defineShorthandFunction('iterables', [''], 'select(type == "array" or type == "object")')
+defineShorthandFunction('scalars', [''], 'select(type != "array" and type != "object")')
 defineShorthandFunction('pick', ['pathexps'], '. as $in | reduce path(pathexps) as $a (null; setpath($a; $in|getpath($a)) )')
 defineShorthandFunction('recurse', [], 'recurse(.[]?; true)')
-defineShorthandFunction('recurse', 'f', 'recurse(f; true)')
-defineShorthandFunction('unique_by', 'f', 'group_by(f) | map(.[0])')
-defineShorthandFunction('combinations', 'n', '. as $input | [ range(n) | $input ] | combinations');
+defineShorthandFunction('recurse', ['f'], 'recurse(f; true)')
+defineShorthandFunction('unique_by', ['f'], 'group_by(f) | map(.[0])')
+defineShorthandFunction('combinations', ['n'], '. as $input | [ range(n) | $input ] | combinations');
 defineShorthandFunction('paths', [], 'path(..)|select(length > 0)')
-defineShorthandFunction('paths', 'f', 'path(..|select(f))|select(length > 0)')
-defineShorthandFunction('scan', 'e', 'scan(e; "")')
+defineShorthandFunction('paths', ['f'], 'path(..|select(f))|select(length > 0)')
+defineShorthandFunction('scan', ['e'], 'scan(e; "")')
 // SQL-style operators
-defineShorthandFunction('INDEX', 'f', '[ .[] | {(f): .} ] | add')
+defineShorthandFunction('INDEX', ['f'], '[ .[] | {(f): .} ] | add')
 defineShorthandFunction('INDEX', ['stream', 'f'], '[ stream | {(f): .} ] | add')
 defineShorthandFunction('JOIN', ['idx', 'stream', 'idx_expr', 'join_expr'], 'idx as $idx | stream | idx_expr as $key | [ ., $idx[$key] ] | join_expr')
 defineShorthandFunction('JOIN', ['idx', 'stream', 'idx_expr'], 'idx as $idx | stream | [., $idx[idx_expr]]')
 defineShorthandFunction('JOIN', ['idx', 'idx_expr'], 'idx as $idx | [.[] | [., $idx[idx_expr]]]')
-defineShorthandFunction('IN', 's', 'any(s == .; .)')
+defineShorthandFunction('IN', ['s'], 'any(s == .; .)')
 defineShorthandFunction('IN', ['source', 's'], 'any(source == s; .)')
 
 
@@ -3377,7 +3344,7 @@ defineShorthandFunction('IN', ['source', 's'], 'any(source == s; .)')
  * @returns {(input: JQValue) => IterableIterator<JQValue>}
  */
 function combined(prog, input, ...rest) {
-    if (nameType(prog) == 'array') {
+    if (prog instanceof Array) {
         // tag string jq`...`
         const collected = [];
         rest.unshift(input);
@@ -3397,7 +3364,7 @@ function combined(prog, input, ...rest) {
     }
 }
 
-const jq = Object.assign(combined, {compile, prettyPrint})
+const jq = Object.assign(combined, { compile, prettyPrint })
 // Delete these two lines for a non-module version (CORS-safe)
 export { compile, prettyPrint, compileNode, formats }
 export default jq
