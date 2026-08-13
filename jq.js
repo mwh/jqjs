@@ -1131,12 +1131,19 @@ class IndexNode extends ParseNode {
         for (let l of this.lhs.apply(input, conf)) {
             let t = nameType(l)
             for (let i of this.index.apply(input, conf)) {
+                if (t != 'array' && t != 'object' && t != 'null')
+                    throw 'Cannot index ' + t + ' with ' + nameType(i) + ' ' +
+                        JSON.stringify(i)
                 if (t == 'array' && nameType(i) != 'number')
                     throw 'Cannot index array with ' + nameType(i) + ' ' +
                         JSON.stringify(i)
                 else if (t == 'object' && nameType(i) != 'string')
                     throw 'Cannot index object with ' + nameType(i) + ' ' +
                         JSON.stringify(i)
+                if (t == 'null') {
+                    yield null
+                    continue
+                }
                 if (typeof i == 'number' && i < 0 && nameType(l) == 'array')
                     yield l[l.length + i]
                 else
