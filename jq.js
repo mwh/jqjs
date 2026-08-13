@@ -1488,6 +1488,8 @@ class ObjectNode extends ParseNode {
         let keys = []
         for (let {key, value} of this.fields) {
             for (let k of key.apply(input, conf)) {
+                if (nameType(k) != 'string')
+                    throw 'Cannot use ' + nameType(k) + ' (' + prettyPrint(k, '', '', '') + ') as object key'
                 keys.push(k)
                 values[k] = []
                 for (let v of value.apply(input, conf))
