@@ -2033,8 +2033,7 @@ class ErrorSuppression extends ParseNode {
     * apply(input, conf) {
         try {
             for (let o of this.inner.apply(input, conf))
-                if (o !== null)
-                    yield o
+                yield o
         } catch {
         }
     }
@@ -2042,8 +2041,7 @@ class ErrorSuppression extends ParseNode {
         try {
             for (let [o,p] of zip(this.inner.apply(input, conf),
                     this.inner.paths(input, conf)))
-                if (o !== null)
-                    yield p
+                yield p
         } catch {
         }
     }
