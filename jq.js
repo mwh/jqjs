@@ -851,6 +851,36 @@ function parseObject(tokens, startAt=0) {
                     value: r.node,
                 })
                 i--
+            } else if (tokens[i].type == 'comma' || tokens[i].type == 'right-brace') {
+                // shorthand: {"x"} -> {"x": .x}
+                fields.push({
+                    key: new StringNode(ident.value),
+                    value: new IdentifierIndex(ident.value),
+                })
+                i--
+            } else {
+                throw 'unexpected ' + tokens[i].type + ', expected colon at ' +
+                    describeLocation(tokens[i])
+            }
+        } else if (tokens[i].type == 'quote-interp') {
+            // interpolated string key: "x\(...)" : val or shorthand
+            let key
+            ({q: key, i} = parseStringInterpolation(tokens, i))
+            i++
+            if (tokens[i].type == 'colon') {
+                let r = parse(tokens, i + 1, ['comma', 'right-brace'])
+                i = r.i
+                fields.push({
+                    key,
+                    value: r.node,
+                })
+                i--
+            } else if (tokens[i].type == 'comma' || tokens[i].type == 'right-brace') {
+                fields.push({
+                    key,
+                    value: new GenericIndex(key),
+                })
+                i--
             } else {
                 throw 'unexpected ' + tokens[i].type + ', expected colon at ' +
                     describeLocation(tokens[i])
