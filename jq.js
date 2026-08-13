@@ -439,7 +439,12 @@ function parse(tokens, startAt=0, until=[]) {
         } else if (t.type == 'quote') {
             ret.push(new StringNode(t.value))
         } else if (t.type == 'dot') {
-            ret.push(new IdentityNode())
+            if (tokens[i+1] && tokens[i+1].type == 'quote') {
+                ret.push(new GenericIndex(new StringNode(tokens[i+1].value)))
+                i++
+            } else {
+                ret.push(new IdentityNode())
+            }
         } else if (t.type == 'dot-dot') {
             ret.push(new RecursiveDescent())
         } else if (t.type == 'identifier') {
