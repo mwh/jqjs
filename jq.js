@@ -2072,6 +2072,8 @@ class VariableReference extends ParseNode {
         this.name = name
     }
     * apply(input, conf) {
+        if (!(this.name in conf.variables))
+            throw '$' + this.name + ' is not defined'
         yield conf.variables[this.name]
     }
     toString() {
