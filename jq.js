@@ -291,10 +291,22 @@ function tokenise(str, startAt=0, parenDepth) {
             error("unterminated string literal")
         } else if (isDigit(c)) {
             let tok = ''
-            while (isDigit(str[i]) || str[i] == '.')
+            while (isDigit(str[i]))
                 tok += str[i++]
+            if (str[i] == '.') {
+                tok += str[i++]
+                while (isDigit(str[i]))
+                    tok += str[i++]
+            }
+            if (str[i] == 'e' || str[i] == 'E') {
+                tok += str[i++]
+                if (str[i] == '+' || str[i] == '-')
+                    tok += str[i++]
+                while (isDigit(str[i]))
+                    tok += str[i++]
+            }
             ret.push({type: 'number', value: Number.parseFloat(tok), location})
-                i--
+            i--
         } else if (c == '.') {
             let d = str[i+1]
             if (isAlpha(d)) {
