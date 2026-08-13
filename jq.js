@@ -1144,10 +1144,12 @@ class IndexNode extends ParseNode {
                     yield null
                     continue
                 }
-                if (typeof i == 'number' && i < 0 && nameType(l) == 'array')
-                    yield l[l.length + i]
-                else
+                if (typeof i == 'number' && i < 0 && nameType(l) == 'array') {
+                    let v = l[l.length + i]
+                    yield typeof v == 'undefined' ? null : v
+                } else {
                     yield typeof l[i] == 'undefined' ? null : l[i]
+                }
             }
         }
     }
@@ -1196,16 +1198,21 @@ class GenericIndex extends ParseNode {
         let t = nameType(input)
         if (t == 'null') return yield null;
         for (let i of this.index.apply(input, conf)) {
+            if (t != 'array' && t != 'object')
+                throw 'Cannot index ' + t + ' with ' + nameType(i) + ' ' +
+                    JSON.stringify(i)
             if (t == 'array' && nameType(i) != 'number')
                 throw 'Cannot index array with ' + nameType(i) + ' ' +
                     JSON.stringify(i)
             else if (t == 'object' && nameType(i) != 'string')
                 throw 'Cannot index object with ' + nameType(i) + ' ' +
                     JSON.stringify(i)
-            if (typeof i == 'number' && i < 0 && nameType(input) == 'array')
-                yield input[input.length + i]
-            else
+            if (typeof i == 'number' && i < 0 && nameType(input) == 'array') {
+                let v = input[input.length + i]
+                yield typeof v == 'undefined' ? null : v
+            } else {
                 yield typeof input[i] == 'undefined' ? null : input[i]
+            }
         }
     }
     * paths(input, conf) {
