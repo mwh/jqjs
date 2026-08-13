@@ -1871,6 +1871,11 @@ class UpdateAssignment extends ParseNode {
         let last = p.pop()
         for (let i of p)
             o = o[i]
+        if (typeof last == 'number' && last < 0 && nameType(o) == 'array') {
+            last = o.length + last
+            if (last < 0)
+                throw 'Out of bounds negative array index'
+        }
         if (typeof last == 'undefined')
             return v
         o[last] = v
@@ -1909,6 +1914,11 @@ class PlainAssignment extends ParseNode {
                 o = o[i]
             } else
                 o = o[i]
+        }
+        if (typeof last == 'number' && last < 0 && nameType(o) == 'array') {
+            last = o.length + last
+            if (last < 0)
+                throw 'Out of bounds negative array index'
         }
         if (typeof last == 'undefined')
             return v
