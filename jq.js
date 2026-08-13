@@ -552,6 +552,17 @@ function parse(tokens, startAt=0, until=[]) {
                 throw 'unexpected ? without preceding filter at ' +
                     describeLocation(t)
             ret.push(new ErrorSuppression(p))
+        // Prefix operator
+        } else if (ret.length == '0' && t.type == 'op' && t.op == '-') {
+            let nextType = tokens[i+1] ? tokens[i+1].type : null;
+            if (nextType == 'number' || nextType == 'dot' || nextType == 'dot-square' || nextType == 'left-paren') {
+                let r = parse(tokens, i + 1, ['op', 'comma', 'pipe', 'right-paren', 'right-brace', 'right-square', '<end-of-program>'].concat(until))
+                i = r.i
+                if (tokens[i]) i--
+                ret = [new PrefixNegationNode(r.node)]
+            } else {
+                throw 'unexpected prefix operator ' + t.op + ' before ' + (tokens[i+1] ? tokens[i+1].type : 'end of program') + ' at ' + describeLocation(t)
+            }
         // Infix operators
         } else if (t.type == 'op') {
             if (ret.length == 0 && t.op == '-' && tokens[i+1].type == 'number') {
@@ -1000,6 +1011,7 @@ function nameType(o) {
 //   PipeNode, a | b | c
 //   ObjectNode { x : y, z, "a b" : 12, (.x.y) : .z }
 //   RecursiveDescent, ..
+//   PrefixNegationNode, -a
 //   OperatorNode, a binary infix operator
 //   AdditionOperator, a + b
 //   MultiplicationOperator, a * b
@@ -1479,6 +1491,22 @@ class RecursiveDescent extends ParseNode {
     }
     toString() {
         return '..'
+    }
+}
+class PrefixNegationNode extends ParseNode {
+    constructor(inner) {
+        super()
+        this.inner = inner
+    }
+    * apply(input, conf) {
+        for (let v of this.inner.apply(input, conf)) {
+            if (nameType(v) != 'number')
+                throw 'cannot negate ' + nameType(v)
+            yield -v;
+        }
+    }
+    toString() {
+        return '-' + this.inner.toString()
     }
 }
 class OperatorNode extends ParseNode {
