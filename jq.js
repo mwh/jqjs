@@ -2390,9 +2390,17 @@ const functions = {
     'range/3': function*(input, conf, args) {
         for (let min of args[0].apply(input, conf))
             for (let max of args[1].apply(input, conf))
-                for (let step of args[2].apply(input, conf))
-                    for (let i = min; i < max; i+=step)
-                        yield i
+                for (let step of args[2].apply(input, conf)) {
+                    if (step === 0)
+                        continue
+                    if (step > 0) {
+                        for (let i = min; i < max; i += step)
+                            yield i
+                    } else {
+                        for (let i = min; i > max; i += step)
+                            yield i
+                    }
+                }
     },
     'any/0': function*(input, conf) {
         if (nameType(input) != 'array')
