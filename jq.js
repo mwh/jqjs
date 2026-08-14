@@ -2224,7 +2224,8 @@ const formats = {
     uri(v) {
         if (typeof v != 'string')
             v = prettyPrint(v, '', '', '')
-        return encodeURIComponent(v)
+        return encodeURIComponent(v).replace(/[!'()*]/g,
+            c => '%' + c.charCodeAt(0).toString(16).toUpperCase())
     },
     urid(v) {
         if (typeof v != 'string')
