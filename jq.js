@@ -1911,7 +1911,19 @@ class UpdateAssignment extends ParseNode {
     get(obj, p) {
         let o = obj
         for (let i of p) {
-            if (o === null) return null;
+            if (o === null || typeof o == 'undefined') return null;
+            if (typeof i == 'object' && i && 'start' in i && 'end' in i) {
+                if (nameType(o) != 'array' && nameType(o) != 'string')
+                    return null
+                let s = i.start
+                let e = i.end
+                if (s < 0) s += o.length
+                if (e < 0) e += o.length
+                o = o.slice(s, e)
+                continue
+            }
+            if ((nameType(o) != 'object' && nameType(o) != 'array') || !o.hasOwnProperty(i))
+                return null
             o = o[i]
         }
         return o
@@ -1925,12 +1937,40 @@ class UpdateAssignment extends ParseNode {
             return obj;
         let o = obj
         let last = p.pop()
-        for (let i of p)
+        for (let j = 0; j < p.length; j++) {
+            let i = p[j]
+            if (o === null || typeof o == 'undefined') {
+                if (del)
+                    return obj
+                return obj
+            }
+            if (!(i in o)) {
+                if (del)
+                    return obj
+                return obj
+            }
             o = o[i]
+        }
         if (typeof last == 'number' && last < 0 && nameType(o) == 'array') {
             last = o.length + last
             if (last < 0)
                 throw 'Out of bounds negative array index'
+        }
+        if (typeof last == 'object' && last && 'start' in last && 'end' in last && nameType(o) == 'array') {
+            let s = last.start
+            let e = last.end
+            if (s < 0) s += o.length
+            if (e < 0) e += o.length
+            if (s < 0) s = 0
+            if (e < 0) e = 0
+            if (s > o.length) s = o.length
+            if (e > o.length) e = o.length
+            let insert = (v instanceof Array) ? v : [v]
+            if (del)
+                o.splice(s, e - s)
+            else
+                o.splice(s, e - s, ...insert)
+            return obj
         }
         if (typeof last == 'undefined')
             return v
