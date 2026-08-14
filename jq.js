@@ -2264,12 +2264,12 @@ const formats = {
     base64(v) {
         if (typeof v != 'string')
             v = prettyPrint(v, '', '', '')
-        return btoa(v)
+        return Buffer.from(v, 'utf8').toString('base64')
     },
     base64d(v) {
         if (typeof v != 'string')
             throw 'can only base64-decode strings'
-        return atob(v)
+        return Buffer.from(v, 'base64').toString('utf8')
     },
     sh(v) {
         let t = nameType(v)
