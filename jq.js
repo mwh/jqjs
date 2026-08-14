@@ -496,7 +496,7 @@ function parse(tokens, startAt=0, until=[]) {
                         r.node = new NumberNode(0)
                     let e = parse(tokens, r.i + 1, ['right-square'])
                     if (e.node.length === 0)
-                        e.node = new NumberNode(-1)
+                        e.node = new NumberNode(Number.POSITIVE_INFINITY)
                     ret.push(new SliceNode(lhs, r.node, e.node))
                     r = e
                 } else if (r.node.length === 0)
@@ -810,11 +810,11 @@ function parseDotSquare(tokens, startAt=0) {
     if (tokens[r.i].type == 'colon') {
         // Slice
         let fr = r
-        if (fr.length === 0)
+        if (fr.node.length === 0)
             fr.node = new NumberNode(0)
         r = parse(tokens, r.i + 1, ['right-square'])
-        if (r.length === 0)
-            r.node = new NumberNode(-1)
+        if (r.node.length === 0)
+            r.node = new NumberNode(Number.POSITIVE_INFINITY)
         return {node: new GenericSlice(fr.node, r.node), i: r.i}
     }
     return {node: new GenericIndex(r.node), i: r.i}
