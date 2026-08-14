@@ -2218,8 +2218,8 @@ const formats = {
     html(v) {
         if (typeof v != 'string')
             v = prettyPrint(v, '', '', '')
-        return v.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(
-            /&/g, '&amp;').replace(/'/g, '&apos;').replace(/"/g, '&quot;')
+        return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(
+            />/g, '&gt;').replace(/'/g, '&apos;').replace(/"/g, '&quot;')
     },
     uri(v) {
         if (typeof v != 'string')
