@@ -572,7 +572,7 @@ function parse(tokens, startAt=0, until=[]) {
         // Prefix operator
         } else if (ret.length == '0' && t.type == 'op' && t.op == '-') {
             let nextType = tokens[i+1] ? tokens[i+1].type : null;
-            if (nextType == 'number' || nextType == 'dot' || nextType == 'dot-square' || nextType == 'left-paren') {
+            if (nextType == 'number' || nextType == 'dot' || nextType == 'dot-square' || nextType == 'left-paren' || nextType == 'identifier') {
                 let r = parse(tokens, i + 1, ['op', 'comma', 'pipe', 'right-paren', 'right-brace', 'right-square', '<end-of-program>'].concat(until))
                 i = r.i
                 if (tokens[i]) i--
