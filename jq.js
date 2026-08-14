@@ -1618,7 +1618,7 @@ class PrefixNegationNode extends ParseNode {
     * apply(input, conf) {
         for (let v of this.inner.apply(input, conf)) {
             if (nameType(v) != 'number')
-                throw 'cannot negate ' + nameType(v)
+                throw describeValue(v) + ' cannot be negated'
             yield -v;
         }
     }
