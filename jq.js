@@ -3274,8 +3274,11 @@ const functions = {
     'flatten/1': function*(input, conf, args) {
         if (nameType(input) != 'array')
             throw 'can only flatten array, not ' + nameType(input);
-        for (let depth of args[0].apply(input, conf))
+        for (let depth of args[0].apply(input, conf)) {
+            if (depth < 0)
+                throw 'flatten depth must not be negative'
             yield input.flat(depth);
+        }
     },
     'transpose/0': function*(input) {
         if (nameType(input) != 'array')
