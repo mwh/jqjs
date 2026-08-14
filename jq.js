@@ -1924,9 +1924,16 @@ class PlainAssignment extends ParseNode {
             obj = {}
         let o = obj
         let last = p.pop()
-        for (let i of p) {
+        for (let j = 0; j < p.length; j++) {
+            let i = p[j]
+            let next = p[j + 1]
+            let target = (typeof next == 'undefined') ? last : next
             if (!(i in o)) {
-                o[i] = {}
+                if (nameType(o) == 'array' && typeof i == 'number' && i >= o.length) {
+                    while (o.length < i)
+                        o.push(null)
+                }
+                o[i] = (typeof target == 'number') ? [] : {}
                 o = o[i]
             } else
                 o = o[i]
@@ -1938,6 +1945,10 @@ class PlainAssignment extends ParseNode {
         }
         if (typeof last == 'undefined')
             return v
+        if (nameType(o) == 'array' && typeof last == 'number' && last >= o.length) {
+            while (o.length < last)
+                o.push(null)
+        }
         o[last] = v
         return obj
     }
