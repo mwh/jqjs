@@ -2856,14 +2856,28 @@ const functions = {
                 throw 'Paths must be specified as an array'
             let obj = JSON.parse(JSON.stringify(input));
             for (let path of paths) {
+                if (nameType(path) != 'array' || path.length == 0)
+                    continue
                 let current = obj;
+                let missing = false
                 for (let key of path.slice(0, -1)) {
-                    if (!current.hasOwnProperty(key)) {
-                        current[key] = {};
+                    if (current === null || (nameType(current) != 'object' && nameType(current) != 'array') || !current.hasOwnProperty(key)) {
+                        missing = true
+                        break
                     }
                     current = current[key];
                 }
-                delete current[path[path.length - 1]];
+                if (missing || current === null || (nameType(current) != 'object' && nameType(current) != 'array'))
+                    continue
+                let last = path[path.length - 1]
+                if (nameType(current) == 'array' && typeof last == 'number') {
+                    if (last < 0)
+                        last = current.length + last
+                    if (last >= 0 && last < current.length)
+                        current.splice(last, 1)
+                } else {
+                    delete current[last]
+                }
             }
             yield obj;
         }
