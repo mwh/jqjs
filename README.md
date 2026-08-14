@@ -66,7 +66,8 @@ support.
         - [x] ascii_upcase/1, ascii_downcase/1
         - [x] recurse/0, recurse/1, recurse/2, while/2, until/2, builtins
         - [x] isfinite, isinfinite, isnormal, isnan, infinite, nan
-        - [ ] repeat/1, debug/1, error/1, the others...
+        - [x] error/0, error/1
+        - [ ] repeat/1, debug/1, the others...
     - [x] User-defined functions
       - [x] def foo: . + 1; def foo(f;g): f|g; def addvalue($f): map(. + $f);
     - [x] Mathematical functions (found in JavaScript Math object)
@@ -93,7 +94,7 @@ support.
 - [x] Conditionals: `if A then B elif C then D else E end`
 - [x] Boolean operators `and`, `or`
 - [x] Alternative operator: `//`
-- [ ] Try-catch: `try EXP catch EXP`
+- [x] Try-catch: `try EXP catch EXP`
   - [x] Error Suppression operator `?`
 - [x] Regular expressions (uses JavaScript RegExp, so behaviour is incomplete)
 - [x] Variable/Symbolic Binding Operator `... as $identifier | ...`

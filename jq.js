@@ -2661,6 +2661,13 @@ const functions = {
             yield input.split(re);
         }
     }, {params: [{label: 'regex'}, {label: 'flags'}]}),
+    'error/0': Object.assign(function*(input) {
+        throw input
+    }, {params: []}),
+    'error/1': Object.assign(function*(input, conf, args) {
+        for (let value of args[0].apply(input, conf))
+            throw value
+    }, {params: [{label: 'message'}]}),
     'splits/1': Object.assign(function*(input, conf, args) {
         if (nameType(input) != 'string')
             throw 'can only split string, not ' + nameType(input)
