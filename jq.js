@@ -1904,6 +1904,7 @@ class UpdateAssignment extends ParseNode {
             else
                 input = this.update(input, p, it.value)
         }
+        input = this.normaliseDenseJson(input)
         yield input
     }
     // Pluck the value at a path out of an object
@@ -1937,6 +1938,21 @@ class UpdateAssignment extends ParseNode {
         if (del)
             delete o[last]
         return obj
+    }
+    normaliseDenseJson(value) {
+        if (value instanceof Array) {
+            let dense = []
+            for (let i = 0; i < value.length; i++) {
+                if (Object.prototype.hasOwnProperty.call(value, i))
+                    dense.push(this.normaliseDenseJson(value[i]))
+            }
+            return dense
+        }
+        if (value && typeof value == 'object') {
+            for (let k of Object.keys(value))
+                value[k] = this.normaliseDenseJson(value[k])
+        }
+        return value
     }
     toString() {
         return this.l + ' |= ' + this.r
