@@ -1672,8 +1672,17 @@ class MultiplicationOperator extends OperatorNode {
         throw 'type mismatch in *:' + lt + ' and ' + rt + ' cannot be multiplied'
     }
     repeat(s, n) {
-        if (n == 0)
+        if (!Number.isFinite(n) || Number.isNaN(n))
             return null;
+        if (n < 0)
+            return null;
+        n = Math.floor(n)
+        if (n == 0)
+            return '';
+        if (s.length == 0)
+            return '';
+        if (s.length * n > 100000000)
+            throw 'Repeat string result too long'
         let r = []
         for (let i = 0; i < n; i++)
             r.push(s)
