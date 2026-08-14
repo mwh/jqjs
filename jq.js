@@ -2453,6 +2453,8 @@ const functions = {
     },
     'empty/0': function*(input) {
     },
+    'empty/0-paths': function*(input, conf, args) {
+    },
     'fromjson/0': function*(input) {
         yield JSON.parse(input)
     },
