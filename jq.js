@@ -552,7 +552,7 @@ function parse(tokens, startAt=0, until=[]) {
             if (t.type == 'as') {
                 let nameTok = tokens[i+1]
                 if (nameTok.type != 'variable')
-                    throw 'expected variable name after as at ' + describeLocation(tokens[i]) + ' not ' + tokens[i].type
+                    throw 'expected variable name after as at ' + describeLocation(tokens[i]) + ' not ' + tokens[i+1].type
                 lhs = new VariableBinding(lhs, nameTok.name)
                 i += 2
             }
