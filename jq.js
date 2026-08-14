@@ -2782,27 +2782,29 @@ const functions = {
     'ltrim/0': Object.assign(function*(input, conf) {
         if (nameType(input) != 'string')
             throw 'trim input must be a string'
-        yield input.trimLeft();
+        yield input.replace(/^[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/u, '');
     }, {params: []}),
     'rtrim/0': Object.assign(function*(input, conf) {
         if (nameType(input) != 'string')
             throw 'trim input must be a string'
-        yield input.trimRight();
+        yield input.replace(/[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/u, '');
     }, {params: []}),
     'trim/0': Object.assign(function*(input, conf) {
         if (nameType(input) != 'string')
             throw 'trim input must be a string'
-        yield input.trim();
+        yield input
+            .replace(/^[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/u, '')
+            .replace(/[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/u, '');
     }, {params: []}),
     'trimstr/1': Object.assign(function*(input, conf, args) {
         if (nameType(input) != 'string')
             throw 'can only trim strings, not ' + nameType(input)
         for (let s of args[0].apply(input, conf)) {
             let str = input;
-            if (str.startsWith(s)) {
+            if (s.length > 0 && str.startsWith(s)) {
                 str = str.slice(s.length);
             }
-            if (str.endsWith(s)) {
+            if (s.length > 0 && str.endsWith(s)) {
                 str = str.slice(0, -s.length);
             }
             yield str;
@@ -2824,7 +2826,7 @@ const functions = {
             throw 'can only trim strings, not ' + nameType(input)
         for (let s of args[0].apply(input, conf)) {
             let str = input;
-            if (str.endsWith(s)) {
+            if (s.length > 0 && str.endsWith(s)) {
                 str = str.slice(0, -s.length);
             }
             yield str;
