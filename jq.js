@@ -3176,6 +3176,8 @@ const functions = {
                 best_by = by;
             }
         }
+        if (typeof best === 'undefined')
+            best = null
         yield best;
     },
     'indices/1': function*(input, conf, args) {
