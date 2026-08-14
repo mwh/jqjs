@@ -2016,13 +2016,15 @@ class PlainAssignment extends ParseNode {
     // Set the value at path p to v in obj
     update(obj, p, v) {
         if (obj === null)
-            obj = {}
+            obj = (typeof p[0] == 'number' || (typeof p[0] == 'object' && p[0] && 'start' in p[0] && 'end' in p[0])) ? [] : {}
         let o = obj
         let last = p.pop()
         for (let j = 0; j < p.length; j++) {
             let i = p[j]
             let next = p[j + 1]
             let target = (typeof next == 'undefined') ? last : next
+            if (nameType(o) == 'array' && typeof i == 'number' && i > 100000000)
+                throw 'Array index too large'
             if (!(i in o)) {
                 if (nameType(o) == 'array' && typeof i == 'number' && i >= o.length) {
                     while (o.length < i)
@@ -2038,6 +2040,21 @@ class PlainAssignment extends ParseNode {
             if (last < 0)
                 throw 'Out of bounds negative array index'
         }
+        if (typeof last == 'object' && last && 'start' in last && 'end' in last && nameType(o) == 'array') {
+            let s = last.start
+            let e = last.end
+            if (s < 0) s += o.length
+            if (e < 0) e += o.length
+            if (s < 0) s = 0
+            if (e < 0) e = 0
+            if (s > o.length) s = o.length
+            if (e > o.length) e = o.length
+            let insert = (v instanceof Array) ? v : [v]
+            o.splice(s, e - s, ...insert)
+            return obj
+        }
+        if (nameType(o) == 'array' && typeof last == 'number' && last > 100000000)
+            throw 'Array index too large'
         if (typeof last == 'undefined')
             return v
         if (nameType(o) == 'array' && typeof last == 'number' && last >= o.length) {
