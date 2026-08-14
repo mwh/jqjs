@@ -2806,7 +2806,7 @@ const functions = {
         for (let path of args[0].apply(input, conf)) {
             let obj = input;
             for (let key of path) {
-                if (obj.hasOwnProperty(key)) {
+                if (obj !== null && (nameType(obj) == 'object' || nameType(obj) == 'array') && obj.hasOwnProperty(key)) {
                     obj = obj[key];
                 } else {
                     obj = null;
@@ -2829,12 +2829,21 @@ const functions = {
             let current = clone;
             // dig while creating missing intermediate value according to next path
             for (let i = 0; i < path.length - 1; i++) {
+                if (nameType(current) == 'array' && typeof path[i] == 'number' && path[i] >= current.length) {
+                    while (current.length < path[i])
+                        current.push(null)
+                }
                 if (!current.hasOwnProperty(path[i]))
                     current[path[i]] = nameType(path[i + 1]) == 'number' ? [] : {};
                 current = current[path[i]];
             }
             for (let val of args[1].apply(input, conf)) {
-                current[path.at(-1)] = val;
+                let last = path.at(-1)
+                if (nameType(current) == 'array' && typeof last == 'number' && last >= current.length) {
+                    while (current.length < last)
+                        current.push(null)
+                }
+                current[last] = val;
             }
             yield clone;
         }
