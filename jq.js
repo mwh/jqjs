@@ -2980,11 +2980,14 @@ const functions = {
         }
     }, {params: [{label: 'generator'}]}),
     'last/1': Object.assign(function*(input, conf, args) {
+        let found = false
         let last = null
         for (let n of args[0].apply(input, conf)) {
+            found = true
             last = n;
         }
-        yield last;
+        if (found)
+            yield last;
     }, {params: [{label: 'generator'}]}),
     'isempty/1': function*(input, conf, args) {
         for (let item of args[0].apply(input, conf))
