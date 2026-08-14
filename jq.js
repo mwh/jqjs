@@ -161,6 +161,8 @@ function compareValues(a, b) {
             let c = compareValues(v1, v2)
             if (c != 0) return c
         }
+        if (a.length < b.length) return -1
+        if (a.length > b.length) return 1
         return 0
     } else if (at == 'object') {
         let ka = Object.keys(a).sort()
