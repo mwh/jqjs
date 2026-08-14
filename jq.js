@@ -2479,8 +2479,11 @@ const functions = {
         let t = nameType(input)
         if (t == 'array') {
             let obj = {}
-            for (let {key, value} of input)
+            for (let entry of input) {
+                let key = entry.key ?? entry.Key ?? entry.name ?? entry.Name
+                let value = entry.value ?? entry.Value
                 obj[key] = value
+            }
             yield obj
         } else
             throw 'cannot use entries from ' + t
