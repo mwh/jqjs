@@ -108,6 +108,10 @@ function describeValue(val) {
     return nameType(val) + ' (' + prettyPrint(val, '', '', '') + ')'
 }
 
+function isJqTruthy(val) {
+    return val !== false && val !== null
+}
+
 function escapeString(s) {
     s = s.replace(/\\/g, '\\\\')
     s = s.replace(/"/g, '\\"')
@@ -1854,7 +1858,9 @@ class AlternativeOperator extends ParseNode {
     * apply(input, conf) {
         let found = false
         for (let v of this.lhs.apply(input, conf)) {
-            if (v !== null) found = true
+            if (!isJqTruthy(v))
+                continue
+            found = true
             yield v
         }
         if (!found)
@@ -2218,7 +2224,7 @@ class IfNode extends ParseNode {
     * apply(input, conf) {
         for (let [c,t] of zip(this.conditions, this.thens)) {
             for (let cond of c.apply(input, conf)) {
-                if (cond !== false && cond !== null) {
+                if (isJqTruthy(cond)) {
                     for (let o of t.apply(input, conf))
                         yield o
                     return
@@ -2365,7 +2371,7 @@ const functions = {
     'select/1': Object.assign(function*(input, conf, args) {
         let selector = args[0]
         for (let b of selector.apply(input, conf))
-            if (b !== false && b !== null)
+            if (isJqTruthy(b))
                 yield input
     }, {
         params: [{label: 'predicate', mode: 'eval'}]
@@ -2373,7 +2379,7 @@ const functions = {
     'select/1-paths': function*(input, conf, args) {
         let selector = args[0]
         for (let b of selector.apply(input, conf))
-            if (b !== false && b !== null)
+            if (isJqTruthy(b))
                 yield []
     },
     'length/0': function*(input) {
@@ -2495,7 +2501,7 @@ const functions = {
         if (nameType(input) != 'array')
             throw 'any/0 requires array as input, not ' + nameType(input)
         for (let b of input)
-            if (b) return yield true
+            if (isJqTruthy(b)) return yield true
         yield false
     },
     'any/1': Object.assign(function*(input, conf, args) {
@@ -2503,7 +2509,7 @@ const functions = {
             throw 'any/1 requires array as input, not ' + nameType(input)
         for (let v of input)
             for (let b of args[0].apply(v, conf))
-                if (b) return yield true
+                if (isJqTruthy(b)) return yield true
         yield false
     }, {params: [{mode: 'defer'}]}),
     'any/2': function*(input, conf, args) {
@@ -2511,14 +2517,14 @@ const functions = {
         let cond = args[1]
         for (let v of gen.apply(input, conf))
             for (let b of cond.apply(v, conf))
-                if (b) return yield true
+                if (isJqTruthy(b)) return yield true
         yield false
     },
     'all/0': function*(input, conf) {
         if (nameType(input) != 'array')
             throw 'all/0 requires array as input, not ' + nameType(input)
         for (let b of input)
-            if (!b) return yield false
+            if (!isJqTruthy(b)) return yield false
         yield true
     },
     'all/1': Object.assign(function*(input, conf, args) {
@@ -2526,7 +2532,7 @@ const functions = {
             throw 'all/1 requires array as input, not ' + nameType(input)
         for (let v of input)
             for (let b of args[0].apply(v, conf))
-                if (!b) return yield false
+                if (!isJqTruthy(b)) return yield false
         yield true
     }, {params: [{mode: 'defer'}]}),
     'all/2': function*(input, conf, args) {
@@ -2534,7 +2540,7 @@ const functions = {
         let cond = args[1]
         for (let v of gen.apply(input, conf))
             for (let b of cond.apply(v, conf))
-                if (!b) return yield false
+                if (!isJqTruthy(b)) return yield false
         yield true
     },
     'add/0': function*(input, conf) {
@@ -3092,7 +3098,7 @@ const functions = {
             yield input.startsWith(v);
     },
     'not/0': function*(input) {
-        yield !input;
+        yield !isJqTruthy(input);
     },
     'abs/0': function*(input) {
         if (compareValues(input, 0) < 0) {
