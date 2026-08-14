@@ -1247,6 +1247,10 @@ class GenericSlice extends ParseNode {
         this.to = to
     }
     * apply(input, conf) {
+        let t = nameType(input)
+        if (t == 'null') return yield null
+        if (t != 'array' && t != 'string')
+            throw 'Cannot slice ' + t
         for (let l of this.from.apply(input, conf)) {
             if (l < 0) l += input.length
             for (let r of this.to.apply(input, conf)) {
