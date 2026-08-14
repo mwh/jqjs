@@ -104,6 +104,10 @@ function prettyPrint(val, indent='', step='    ', LF='\n') {
     }
 }
 
+function describeValue(val) {
+    return nameType(val) + ' (' + prettyPrint(val, '', '', '') + ')'
+}
+
 function escapeString(s) {
     s = s.replace(/\\/g, '\\\\')
     s = s.replace(/"/g, '\\"')
@@ -1160,14 +1164,11 @@ class IndexNode extends ParseNode {
             let t = nameType(l)
             for (let i of this.index.apply(input, conf)) {
                 if (t != 'array' && t != 'object' && t != 'null')
-                    throw 'Cannot index ' + t + ' with ' + nameType(i) + ' ' +
-                        JSON.stringify(i)
+                    throw 'Cannot index ' + t + ' with ' + describeValue(i)
                 if (t == 'array' && nameType(i) != 'number')
-                    throw 'Cannot index array with ' + nameType(i) + ' ' +
-                        JSON.stringify(i)
+                    throw 'Cannot index array with ' + describeValue(i)
                 else if (t == 'object' && nameType(i) != 'string')
-                    throw 'Cannot index object with ' + nameType(i) + ' ' +
-                        JSON.stringify(i)
+                    throw 'Cannot index object with ' + describeValue(i)
                 if (t == 'null') {
                     yield null
                     continue
@@ -1227,14 +1228,11 @@ class GenericIndex extends ParseNode {
         if (t == 'null') return yield null;
         for (let i of this.index.apply(input, conf)) {
             if (t != 'array' && t != 'object')
-                throw 'Cannot index ' + t + ' with ' + nameType(i) + ' ' +
-                    JSON.stringify(i)
+                throw 'Cannot index ' + t + ' with ' + describeValue(i)
             if (t == 'array' && nameType(i) != 'number')
-                throw 'Cannot index array with ' + nameType(i) + ' ' +
-                    JSON.stringify(i)
+                throw 'Cannot index array with ' + describeValue(i)
             else if (t == 'object' && nameType(i) != 'string')
-                throw 'Cannot index object with ' + nameType(i) + ' ' +
-                    JSON.stringify(i)
+                throw 'Cannot index object with ' + describeValue(i)
             if (typeof i == 'number' && i < 0 && nameType(input) == 'array') {
                 let v = input[input.length + i]
                 yield typeof v == 'undefined' ? null : v
@@ -1373,7 +1371,7 @@ class SpecificValueIterator extends ParseNode {
     * apply(input, conf) {
         for (let o of this.source.apply(input, conf)) {
             if (!['array', 'object'].includes(nameType(o)))
-                throw 'cannot iterate over ' + nameType(o)
+                throw 'Cannot iterate over ' + describeValue(o)
             yield* Object.values(o)
         }
     }
@@ -1411,7 +1409,7 @@ class GenericValueIterator extends ParseNode {
     }
     * apply(input, conf) {
         if (!['array', 'object'].includes(nameType(input)))
-            throw 'cannot iterate over ' + nameType(input)
+            throw 'Cannot iterate over ' + describeValue(input)
         if (nameType(input) == 'array')
             yield* input
         else
@@ -2568,7 +2566,7 @@ const functions = {
         else if (input === "true" || input === true)
             yield true;
         else
-            throw `cannot convert ${nameType(input)} (${prettyPrint(input)}) to boolean`;
+            throw `${describeValue(input)} cannot be parsed as a boolean`;
     },
     'tojson/0': function*(input) {
         yield JSON.stringify(input);
@@ -2742,6 +2740,8 @@ const functions = {
         if (nameType(input) != 'object' && nameType(input) != 'array')
             throw 'can only delete paths from objects and arrays, not ' + nameType(input)
         for (let paths of args[0].apply(input, conf)) {
+            if (nameType(paths) != 'array')
+                throw 'Paths must be specified as an array'
             let obj = JSON.parse(JSON.stringify(input));
             for (let path of paths) {
                 let current = obj;
@@ -2758,17 +2758,17 @@ const functions = {
     }, {params: [{label: 'paths'}]}),
     'ltrim/0': Object.assign(function*(input, conf) {
         if (nameType(input) != 'string')
-            throw 'can only trim strings, not ' + nameType(input)
+            throw 'trim input must be a string'
         yield input.trimLeft();
     }, {params: []}),
     'rtrim/0': Object.assign(function*(input, conf) {
         if (nameType(input) != 'string')
-            throw 'can only trim strings, not ' + nameType(input)
+            throw 'trim input must be a string'
         yield input.trimRight();
     }, {params: []}),
     'trim/0': Object.assign(function*(input, conf) {
         if (nameType(input) != 'string')
-            throw 'can only trim strings, not ' + nameType(input)
+            throw 'trim input must be a string'
         yield input.trim();
     }, {params: []}),
     'trimstr/1': Object.assign(function*(input, conf, args) {
@@ -2827,7 +2827,7 @@ const functions = {
             if (nameType(n) != 'number')
                 throw 'nth index must be a number, not ' + nameType(n)
             if (n < 0)
-                throw 'negative indices not supported for nth'
+                throw "nth doesn't support negative indices"
             yield input[n];
         }
     }, {params: [{label: 'index'}]}),
@@ -2836,7 +2836,7 @@ const functions = {
             if (nameType(n) != 'number')
                 throw 'nth index must be a number, not ' + nameType(n)
             if (n < 0)
-                throw 'negative indices not supported for nth'
+                throw "nth doesn't support negative indices"
             let index = 0;
             for (let item of args[1].apply(input, conf)) {
                 index++;
