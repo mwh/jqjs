@@ -2970,17 +2970,25 @@ const functions = {
     },
     'limit/2': Object.assign(function*(input, conf, args) {
         for (let n of args[0].apply(input, conf)) {
+            if (n < 0)
+                throw "limit doesn't support negative count"
+            if (n == 0)
+                continue
             let count = 0;
-            for (let val of args[1].apply(input, conf)) {
-                if (count >= n)
+            let it = args[1].apply(input, conf)[Symbol.iterator]()
+            while (count < n) {
+                let next = it.next()
+                if (next.done)
                     break;
-                yield val;
+                yield next.value;
                 count++;
             }
         }
     }, {params: [{label: 'n'}, {label: 'expr'}]}),
     'skip/2': Object.assign(function*(input, conf, args) {
         for (let n of args[0].apply(input, conf)) {
+            if (n < 0)
+                throw "skip doesn't support negative count"
             let count = 0;
             for (let val of args[1].apply(input, conf)) {
                 if (count >= n) {
