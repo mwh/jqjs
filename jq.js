@@ -2336,7 +2336,18 @@ const functions = {
         throw 'cannot compute length of ' + t
     },
     'keys/0': function*(input) {
-        yield* Object.keys(input).sort()
+        if (nameType(input) == 'array') {
+            let out = []
+            for (let i = 0; i < input.length; i++)
+                out.push(i)
+            yield out
+            return
+        }
+        if (nameType(input) == 'object') {
+            yield Object.keys(input).sort()
+            return
+        }
+        throw 'can only get keys of arrays and objects, not ' + nameType(input)
     },
     'has/1': Object.assign(function*(input, conf, args) {
         let f = args[0]
