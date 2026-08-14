@@ -2274,7 +2274,7 @@ const formats = {
     sh(v) {
         let t = nameType(v)
         if (t == 'string')
-            return "'" + t.replace(/'/g, "'\\''") + "'"
+            return "'" + v.replace(/'/g, "'\\''") + "'"
         else if (t == 'number')
             return '' + v
         else if (t == 'boolean')
