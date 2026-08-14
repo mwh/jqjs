@@ -177,6 +177,36 @@ function compareValues(a, b) {
 compareValues.typeOrder = ['null', 'boolean', 'number', 'string',
                            'array', 'object']
 
+function valueEquals(l, r) {
+    let lt = nameType(l)
+    let rt = nameType(r)
+    if (lt != rt)
+        return false
+    if (lt == 'number')
+        return (Number.isNaN(l) && Number.isNaN(r)) || l === r
+    if (lt == 'string' || lt == 'boolean' || lt == 'null')
+        return l === r
+    if (lt == 'array') {
+        if (l.length != r.length)
+            return false
+        for (let i = 0; i < l.length; i++)
+            if (!valueEquals(l[i], r[i]))
+                return false
+        return true
+    }
+    let lk = Object.keys(l)
+    let rk = Object.keys(r)
+    if (lk.length != rk.length)
+        return false
+    for (let k of lk) {
+        if (!r.hasOwnProperty(k))
+            return false
+        if (!valueEquals(l[k], r[k]))
+            return false
+    }
+    return true
+}
+
 // Create a function from a program string.
 //
 // params is an array of parameter names
@@ -1819,29 +1849,7 @@ class EqualsOperator extends OperatorNode {
         super(l, r)
     }
     combine(l, r, lt, rt) {
-        if (lt != rt)
-            return false
-        if (lt == 'number' || lt == 'string' || lt == 'boolean' || lt == 'null')
-            return l == r
-        if (lt == 'array') {
-            if (l.length != r.length)
-                return false
-            for (let i = 0; i < l.length; i++)
-                if (!this.combine(l[i], r[i], nameType(l[i]), nameType(r[i])))
-                    return false
-            return true
-        }
-        let lk = Object.keys(l)
-        let rk = Object.keys(r)
-        if (lk.length != rk.length)
-            return false
-        for (let k of lk) {
-            if (!r.hasOwnProperty(k))
-                return false
-            if (!this.combine(l[k], r[k], nameType(l[k]), nameType(r[k])))
-                return false
-        }
-        return true
+        return valueEquals(l, r)
     }
     toString() {
         return this.l + ' == ' + this.r
@@ -1852,7 +1860,7 @@ class NotEqualsOperator extends EqualsOperator {
         super(l, r)
     }
     combine(l, r, lt, rt) {
-        return !super.combine(l, r, lt, rt)
+        return !valueEquals(l, r)
     }
     toString() {
         return this.l + ' != ' + this.r
@@ -3586,7 +3594,7 @@ function combined(prog, input, ...rest) {
     }
 }
 
-const jq = Object.assign(combined, {compile, prettyPrint})
+const jq = Object.assign(combined, {compile, prettyPrint, valueEquals})
 // Delete these two lines for a non-module version (CORS-safe)
-export { compile, prettyPrint, compileNode, formats }
+export { compile, prettyPrint, compileNode, formats, valueEquals }
 export default jq
