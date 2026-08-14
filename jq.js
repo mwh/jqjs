@@ -222,8 +222,8 @@ function defineShorthandFunction(name, params, body) {
 // right-square, left-paren, right-paren, pipe, comma,
 // identifier, colon, left-brace, right-brace, semicolon, at,
 // variable, as, reduce, foreach, def, import, include, question
-// if, then, else, end, elif
-const KEYWORDS = ['as', 'reduce', 'foreach', 'import', 'include', 'def', 'if', 'then', 'else', 'end', 'elif', 'and', 'or'];
+// if, then, else, end, elif, try, catch
+const KEYWORDS = ['as', 'reduce', 'foreach', 'import', 'include', 'def', 'if', 'then', 'else', 'end', 'elif', 'try', 'catch', 'and', 'or'];
 function tokenise(str, startAt=0, parenDepth) {
     let ret = []
     function error(msg) {
@@ -572,7 +572,7 @@ function parse(tokens, startAt=0, until=[]) {
         // Prefix operator
         } else if (ret.length == '0' && t.type == 'op' && t.op == '-') {
             let nextType = tokens[i+1] ? tokens[i+1].type : null;
-            if (nextType == 'number' || nextType == 'dot' || nextType == 'dot-square' || nextType == 'left-paren' || nextType == 'identifier') {
+            if (nextType == 'number' || nextType == 'dot' || nextType == 'dot-square' || nextType == 'left-paren' || nextType == 'identifier' || nextType == 'try') {
                 let r = parse(tokens, i + 1, ['op', 'comma', 'pipe', 'right-paren', 'right-brace', 'right-square', '<end-of-program>'].concat(until))
                 i = r.i
                 if (tokens[i]) i--
@@ -683,6 +683,22 @@ function parse(tokens, startAt=0, until=[]) {
         // Variable reference
         } else if (t.type == 'variable') {
             ret.push(new VariableReference(t.name))
+        // try EXP catch HANDLER, or try EXP (which suppresses the error)
+        } else if (t.type == 'try') {
+            let body = parse(tokens, i + 1, ['catch', 'op', 'comma', 'pipe', 'right-paren',
+                'right-brace', 'right-square', '<end-of-program>'].concat(until))
+            i = body.i
+            let handler = null
+            if (tokens[i] && tokens[i].type == 'catch') {
+                let caught = parse(tokens, i + 1, ['comma', 'pipe', 'right-paren',
+                    'right-brace', 'right-square', '<end-of-program>'].concat(until))
+                i = caught.i
+                handler = caught.node
+            }
+            if (tokens[i] && tokens[i].type != '<end-of-program>') {
+                i--
+            }
+            ret.push(new TryCatchNode(body.node, handler))
         // Conditional if-then-(elif-then)*-else?-end
         } else if (t.type == 'if') {
             let conds = []
@@ -2074,6 +2090,41 @@ class ErrorSuppression extends ParseNode {
     }
     toString() {
         return this.inner + '?'
+    }
+}
+class TryCatchNode extends ParseNode {
+    constructor(body, handler) {
+        super()
+        this.body = body
+        this.handler = handler
+    }
+    caughtValue(error) {
+        if (error && typeof error == 'object' && 'message' in error)
+            return error.message
+        return error
+    }
+    * apply(input, conf) {
+        try {
+            yield* this.body.apply(input, conf)
+        } catch (error) {
+            if (!this.handler)
+                return
+            yield* this.handler.apply(this.caughtValue(error), conf)
+        }
+    }
+    * paths(input, conf) {
+        try {
+            yield* this.body.paths(input, conf)
+        } catch (error) {
+            if (!this.handler)
+                return
+            yield* this.handler.paths(this.caughtValue(error), conf)
+        }
+    }
+    toString() {
+        if (this.handler)
+            return 'try ' + this.body + ' catch ' + this.handler
+        return 'try ' + this.body
     }
 }
 class VariableBinding extends ParseNode {
