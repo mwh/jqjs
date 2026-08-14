@@ -2251,7 +2251,8 @@ const formats = {
             throw 'cannot tsv-format ' + nameType(v) + ', only array'
         return v.map(x => {
             if (typeof x == 'string')
-                return escapeString(x)
+                return x.replace(/\\/g, '\\\\').replace(/\t/g, '\\t')
+                    .replace(/\r/g, '\\r').replace(/\n/g, '\\n')
             else if (typeof x == 'number')
                 return '' + x
             else if (x === null)
