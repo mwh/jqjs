@@ -2169,7 +2169,7 @@ class IfNode extends ParseNode {
     * apply(input, conf) {
         for (let [c,t] of zip(this.conditions, this.thens)) {
             for (let cond of c.apply(input, conf)) {
-                if (cond) {
+                if (cond !== false && cond !== null) {
                     for (let o of t.apply(input, conf))
                         yield o
                     return
