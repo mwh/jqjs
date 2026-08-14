@@ -2661,7 +2661,15 @@ const functions = {
         yield sum
     }, {params: [{label: 'source'}]}),
     'tonumber/0': function*(input) {
-        yield Number.parseFloat(input)
+        if (nameType(input) == 'number') {
+            yield input
+            return
+        }
+        if (nameType(input) != 'string')
+            throw describeValue(input) + ' cannot be parsed as a number'
+        if (!/^\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\s*$/.test(input))
+            throw describeValue(input) + ' cannot be parsed as a number'
+        yield Number(input)
     },
     'toboolean/0': function*(input) {
         if (input === "false" || input === false)
