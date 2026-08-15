@@ -1209,9 +1209,13 @@ class IndexNode extends ParseNode {
                     yield null
                     continue
                 }
-                if (typeof i == 'number' && i < 0 && nameType(l) == 'array') {
-                    let v = l[l.length + i]
-                    yield typeof v == 'undefined' ? null : v
+                if (t == 'array' && typeof i == 'number') {
+                    if (Number.isNaN(i)) {
+                        yield null
+                        continue
+                    }
+                    let idx = i < 0 ? Math.ceil(l.length + i) : Math.floor(i)
+                    yield typeof l[idx] == 'undefined' ? null : l[idx]
                 } else {
                     yield typeof l[i] == 'undefined' ? null : l[i]
                 }
@@ -1237,10 +1241,12 @@ class SliceNode extends ParseNode {
     * apply(input, conf) {
         for (let l of this.lhs.apply(input, conf))
             for (let s of this.from.apply(input, conf)) {
-                if (s < 0) s += l.length
+                let start = Number.isNaN(s) ? 0 : (s < 0 ? s + l.length : s)
+                start = Math.floor(start)
                 for (let e of this.to.apply(input, conf)) {
-                    if (e < 0) e += l.length
-                    yield l.slice(s, e)
+                    let end = Number.isNaN(e) ? l.length : (e < 0 ? e + l.length : e)
+                    end = Math.ceil(end)
+                    yield l.slice(start, end)
                 }
             }
     }
@@ -1269,9 +1275,13 @@ class GenericIndex extends ParseNode {
                 throw 'Cannot index array with ' + describeValue(i)
             else if (t == 'object' && nameType(i) != 'string')
                 throw 'Cannot index object with ' + describeValue(i)
-            if (typeof i == 'number' && i < 0 && nameType(input) == 'array') {
-                let v = input[input.length + i]
-                yield typeof v == 'undefined' ? null : v
+            if (t == 'array' && typeof i == 'number') {
+                if (Number.isNaN(i)) {
+                    yield null
+                    continue
+                }
+                let idx = i < 0 ? Math.ceil(input.length + i) : Math.floor(i)
+                yield typeof input[idx] == 'undefined' ? null : input[idx]
             } else {
                 yield typeof input[i] == 'undefined' ? null : input[i]
             }
@@ -1302,11 +1312,12 @@ class GenericSlice extends ParseNode {
         if (t != 'array' && t != 'string')
             throw 'Cannot slice ' + t
         for (let l of this.from.apply(input, conf)) {
-            if (l < 0) l += input.length
+            let start = Number.isNaN(l) ? 0 : (l < 0 ? l + input.length : l)
+            start = Math.floor(start)
             for (let r of this.to.apply(input, conf)) {
-                if (r < 0)
-                    r += input.length
-                yield input.slice(l, r)
+                let end = Number.isNaN(r) ? input.length : (r < 0 ? r + input.length : r)
+                end = Math.ceil(end)
+                yield input.slice(start, end)
             }
         }
     }
@@ -1915,10 +1926,10 @@ class UpdateAssignment extends ParseNode {
             if (typeof i == 'object' && i && 'start' in i && 'end' in i) {
                 if (nameType(o) != 'array' && nameType(o) != 'string')
                     return null
-                let s = i.start
-                let e = i.end
-                if (s < 0) s += o.length
-                if (e < 0) e += o.length
+                let s = Number.isNaN(i.start) ? 0 : (i.start < 0 ? i.start + o.length : i.start)
+                s = Math.floor(s)
+                let e = Number.isNaN(i.end) ? o.length : (i.end < 0 ? i.end + o.length : i.end)
+                e = Math.ceil(e)
                 o = o.slice(s, e)
                 continue
             }
@@ -1951,16 +1962,29 @@ class UpdateAssignment extends ParseNode {
             }
             o = o[i]
         }
-        if (typeof last == 'number' && last < 0 && nameType(o) == 'array') {
-            last = o.length + last
-            if (last < 0)
-                throw 'Out of bounds negative array index'
+        if (typeof last == 'number' && nameType(o) == 'array') {
+            if (Number.isNaN(last)) {
+                if (del)
+                    return obj
+                throw 'Cannot set array element at NaN index'
+            }
+            if (last < 0) {
+                last = Math.ceil(o.length + last)
+                if (last < 0)
+                    throw 'Out of bounds negative array index'
+            } else {
+                last = Math.floor(last)
+            }
         }
-        if (typeof last == 'object' && last && 'start' in last && 'end' in last && nameType(o) == 'array') {
-            let s = last.start
-            let e = last.end
-            if (s < 0) s += o.length
-            if (e < 0) e += o.length
+        if (typeof last == 'object' && last && 'start' in last && 'end' in last) {
+            if (nameType(o) == 'string')
+                throw 'Cannot update string slices'
+            if (nameType(o) != 'array')
+                return obj
+            let s = Number.isNaN(last.start) ? 0 : (last.start < 0 ? last.start + o.length : last.start)
+            s = Math.floor(s)
+            let e = Number.isNaN(last.end) ? o.length : (last.end < 0 ? last.end + o.length : last.end)
+            e = Math.ceil(e)
             if (s < 0) s = 0
             if (e < 0) e = 0
             if (s > o.length) s = o.length
@@ -2035,16 +2059,26 @@ class PlainAssignment extends ParseNode {
             } else
                 o = o[i]
         }
-        if (typeof last == 'number' && last < 0 && nameType(o) == 'array') {
-            last = o.length + last
-            if (last < 0)
-                throw 'Out of bounds negative array index'
+        if (typeof last == 'number' && nameType(o) == 'array') {
+            if (Number.isNaN(last))
+                throw 'Cannot set array element at NaN index'
+            if (last < 0) {
+                last = Math.ceil(o.length + last)
+                if (last < 0)
+                    throw 'Out of bounds negative array index'
+            } else {
+                last = Math.floor(last)
+            }
         }
-        if (typeof last == 'object' && last && 'start' in last && 'end' in last && nameType(o) == 'array') {
-            let s = last.start
-            let e = last.end
-            if (s < 0) s += o.length
-            if (e < 0) e += o.length
+        if (typeof last == 'object' && last && 'start' in last && 'end' in last) {
+            if (nameType(o) == 'string')
+                throw 'Cannot update string slices'
+            if (nameType(o) != 'array')
+                return obj
+            let s = Number.isNaN(last.start) ? 0 : (last.start < 0 ? last.start + o.length : last.start)
+            s = Math.floor(s)
+            let e = Number.isNaN(last.end) ? o.length : (last.end < 0 ? last.end + o.length : last.end)
+            e = Math.ceil(e)
             if (s < 0) s = 0
             if (e < 0) e = 0
             if (s > o.length) s = o.length
