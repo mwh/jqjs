@@ -2703,7 +2703,7 @@ const functions = {
         }
         if (nameType(input) != 'string')
             throw describeValue(input) + ' cannot be parsed as a number'
-        if (!/^\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\s*$/.test(input))
+        if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(input))
             throw describeValue(input) + ' cannot be parsed as a number'
         yield Number(input)
     },
