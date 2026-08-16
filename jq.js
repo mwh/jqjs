@@ -2884,19 +2884,41 @@ const functions = {
             let current = clone;
             // dig while creating missing intermediate value according to next path
             for (let i = 0; i < path.length - 1; i++) {
-                if (nameType(current) == 'array' && typeof path[i] == 'number' && path[i] >= current.length) {
-                    while (current.length < path[i])
+                const key = path[i]
+                const ct = nameType(current)
+                if (ct == 'object' && nameType(key) != 'string')
+                    throw 'Cannot index object with ' + describeValue(key)
+                if (ct == 'array' && nameType(key) != 'number')
+                    throw 'Cannot index array with ' + describeValue(key)
+                let idx = key
+                if (ct == 'array' && typeof idx == 'number' && idx < 0)
+                    idx = current.length + idx
+                if (ct == 'array' && typeof idx == 'number' && idx < 0)
+                    throw 'Out of bounds negative array index'
+                if (ct == 'array' && typeof idx == 'number' && idx >= current.length) {
+                    while (current.length < idx)
                         current.push(null)
                 }
-                if (!current.hasOwnProperty(path[i]))
-                    current[path[i]] = nameType(path[i + 1]) == 'number' ? [] : {};
-                current = current[path[i]];
+                if (!current.hasOwnProperty(idx))
+                    current[idx] = nameType(path[i + 1]) == 'number' ? [] : {};
+                current = current[idx];
             }
             for (let val of args[1].apply(input, conf)) {
                 let last = path.at(-1)
-                if (nameType(current) == 'array' && typeof last == 'number' && last >= current.length) {
-                    while (current.length < last)
-                        current.push(null)
+                const ct = nameType(current)
+                if (ct == 'object' && nameType(last) != 'string')
+                    throw 'Cannot index object with ' + describeValue(last)
+                if (ct == 'array' && nameType(last) != 'number')
+                    throw 'Cannot index array with ' + describeValue(last)
+                if (ct == 'array' && typeof last == 'number') {
+                    if (last < 0) {
+                        last = current.length + last
+                        if (last < 0)
+                            throw 'Out of bounds negative array index'
+                    } else if (last >= current.length) {
+                        while (current.length < last)
+                            current.push(null)
+                    }
                 }
                 current[last] = val;
             }
