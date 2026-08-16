@@ -3380,6 +3380,10 @@ const functions = {
         const itype = nameType(input);
         if (itype == 'string') {
             for (let needle of args[0].apply(input, conf)) {
+                if (needle === '') {
+                    yield null
+                    continue
+                }
                 let pos = input.indexOf(needle);
                 if (pos >= 0) yield pos; else yield null;
             }
