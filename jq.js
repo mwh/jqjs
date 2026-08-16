@@ -3246,7 +3246,8 @@ const functions = {
         yield new Date() / 1000;
     },
     'builtins/0': function*(input) {
-        yield Object.keys(functions);
+        // -paths entries are internal path variants, not real builtins
+        yield Object.keys(functions).filter(k => !k.endsWith('-paths'));
     },
     'isinfinite/0': function*(input) {
         yield !Number.isFinite(input);
