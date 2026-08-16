@@ -1769,8 +1769,12 @@ class DivisionOperator extends OperatorNode {
         super(l, r)
     }
     combine(l, r, lt, rt) {
-        if (lt == 'number' && rt == 'number')
+        if (lt == 'number' && rt == 'number') {
+            if (r === 0)
+                throw describeValue(l) + ' and ' + describeValue(r) +
+                    ' cannot be divided because the divisor is zero'
             return l / r
+        }
         if (lt == 'string' && rt == 'string')
             return l.split(r)
         throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided'
@@ -1784,8 +1788,12 @@ class ModuloOperator extends OperatorNode {
         super(l, r)
     }
     combine(l, r, lt, rt) {
-        if (lt == 'number' && rt == 'number')
+        if (lt == 'number' && rt == 'number') {
+            if (r === 0)
+                throw describeValue(l) + ' and ' + describeValue(r) +
+                    ' cannot be divided (remainder) because the divisor is zero'
             return l % r
+        }
         throw 'type mismatch in -:' + lt + ' and ' + rt + ' cannot be divided (remainder)'
     }
     toString() {
