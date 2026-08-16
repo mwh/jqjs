@@ -883,6 +883,9 @@ function parseObject(tokens, startAt=0) {
     let i = startAt
     let fields = []
     while (tokens[i].type != 'right-brace') {
+        // 'and' and 'or' tokenize as op tokens but are valid bare field names
+        if (tokens[i].type == 'op' && (tokens[i].op == 'and' || tokens[i].op == 'or'))
+            tokens[i] = {type: 'identifier', value: tokens[i].op, location: tokens[i].location}
         if (tokens[i].type == 'identifier' || KEYWORDS.includes(tokens[i].type)) {
             // bare name x
             let ident = tokens[i++]
