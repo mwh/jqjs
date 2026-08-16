@@ -2517,6 +2517,7 @@ const functions = {
             return yield input.length
         if (t == 'null') return yield 0
         if (t == 'object') return yield Object.keys(input).length
+        if (t == 'number') return yield Math.abs(input)
         throw 'cannot compute length of ' + t
     },
     'keys/0': function*(input) {
