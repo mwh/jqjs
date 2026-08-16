@@ -2904,11 +2904,18 @@ const functions = {
         }
     }, {params: [{label: 'paths'}, {label: 'value'}]}),
     'delpaths/1': Object.assign(function*(input, conf, args) {
-        if (nameType(input) != 'object' && nameType(input) != 'array')
-            throw 'can only delete paths from objects and arrays, not ' + nameType(input)
         for (let paths of args[0].apply(input, conf)) {
             if (nameType(paths) != 'array')
                 throw 'Paths must be specified as an array'
+            for (let path of paths)
+                if (nameType(path) == 'array' && path.length > 10000)
+                    throw 'Path too deep'
+            if (nameType(input) == 'null') {
+                yield null
+                return
+            }
+            if (nameType(input) != 'object' && nameType(input) != 'array')
+                throw 'can only delete paths from objects and arrays, not ' + nameType(input)
             let obj = JSON.parse(JSON.stringify(input));
             for (let path of paths) {
                 if (nameType(path) != 'array' || path.length == 0)
