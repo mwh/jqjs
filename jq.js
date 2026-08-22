@@ -69,7 +69,7 @@ function isDigit(c) {
     return (c >= '0' && c <= '9')
 }
 
-function prettyPrint(val, indent='', step='    ', LF='\n') {
+function prettyPrint(val, indent='', step='    ', LF='\n', truncateAt=0) {
     let SP = step ? ' ' : ''
     if (typeof val == 'undefined')
         return val
@@ -96,6 +96,8 @@ function prettyPrint(val, indent='', step='    ', LF='\n') {
         ret += LF + indent + '}'
         return ret
     } else if (typeof val == 'string') {
+        if (truncateAt && val.length > truncateAt)
+            val = val.substring(0, truncateAt) + '...'
         return '"' + escapeString(val) + '"'
     } else if (typeof val == 'number') {
         return '' + val
@@ -105,7 +107,7 @@ function prettyPrint(val, indent='', step='    ', LF='\n') {
 }
 
 function describeValue(val) {
-    return nameType(val) + ' (' + prettyPrint(val, '', '', '') + ')'
+    return nameType(val) + ' (' + prettyPrint(val, '', '', '', 24) + ')'
 }
 
 function isJqTruthy(val) {
