@@ -635,13 +635,13 @@ function parse(tokens, startAt=0, until=[], maybePrefix=false) {
             let op = t.op
             let stream = [lhs, t]
             let r = parse(tokens, i + 1, ['op', 'comma', 'pipe', 'right-paren',
-                'right-brace', 'right-square', '<end-of-program>'].concat(until))
+                'right-brace', 'right-square', '<end-of-program>', 'as'].concat(until))
             i = r.i
             stream.push(r.node)
             while (i < tokens.length && tokens[i].type == 'op') {
                 stream.push(tokens[i])
                 let r = parse(tokens, i + 1, ['op', 'comma', 'pipe',
-                    'right-paren', 'right-brace', 'right-square', '<end-of-program>'].concat(until))
+                    'right-paren', 'right-brace', 'right-square', '<end-of-program>', 'as'].concat(until))
                 i = r.i
                 stream.push(r.node)
             }
