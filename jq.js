@@ -2360,20 +2360,26 @@ class IfNode extends ParseNode {
         this.elseBranch = elseBranch
     }
     * apply(input, conf) {
-        for (let [c,t] of zip(this.conditions, this.thens)) {
-            for (let cond of c.apply(input, conf)) {
-                if (isJqTruthy(cond)) {
-                    for (let o of t.apply(input, conf))
-                        yield o
-                    return
-                }
-            }
-        }
-        if (this.elseBranch) {
-            yield* this.elseBranch.apply(input, conf)
+        yield* this.evalIf(input, conf, 0)
+    }
+    * evalIf(input, conf, index, anyYet=false) {
+        if (index >= this.conditions.length) {
+            if (anyYet && this.elseBranch)
+                yield* this.elseBranch.apply(input, conf);
+            else if (anyYet)
+                yield input
             return
         }
-        yield input
+        let c = this.conditions[index];
+        let then = this.thens[index];
+        for (let cond of c.apply(input, conf)) {
+            if (isJqTruthy(cond)) {
+                yield* then.apply(input, conf);
+            } else {
+                yield* this.evalIf(input, conf, index + 1, true);
+            }
+        }
+
     }
     toString() {
         let s = ''
