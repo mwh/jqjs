@@ -113,10 +113,7 @@ function parseTests() {
             }
             if (isBlank(line)) {
                 index++
-                if (expected.length > 0) {
-                    break
-                }
-                continue
+                break
             }
             if (line.trim() === '%%FAIL') {
                 break
