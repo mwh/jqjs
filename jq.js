@@ -478,14 +478,15 @@ function describeLocation(token) {
  * @param {any[]} tokens 
  * @param {number} startAt 
  * @param {string[]} until 
+ * @param {boolean} maybePrefix Allow an "until" token in first position only
  * @returns { {node: ParseNode, i: number} }
  */
-function parse(tokens, startAt=0, until=[]) {
+function parse(tokens, startAt=0, until=[], maybePrefix=false) {
     let i = startAt
     let t = tokens[i]
     let ret = []
     let commaAccum = []
-    while (t && (until.indexOf(t.type) == -1)) {
+    while (t && (until.indexOf(t.type) == -1 || (i == startAt && maybePrefix))) {
         // Simple cases
         if (t.type == 'identifier-index') {
             ret.push(new IdentifierIndex(t.value))
@@ -599,7 +600,7 @@ function parse(tokens, startAt=0, until=[]) {
                 lhs = new VariableBinding(lhs, nameTok.name)
                 i += 2
             }
-            let r = parse(tokens, i + 1, until)
+            let r = parse(tokens, i + 1, until, true)
             let rhs = r.node
             i = r.i
             if (tokens[i] && until.indexOf(tokens[i].type) != -1)
