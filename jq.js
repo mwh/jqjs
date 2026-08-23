@@ -1295,8 +1295,11 @@ class GenericIndex extends ParseNode {
         }
     }
     * paths(input, conf) {
-        for (let a of this.index.apply(input, conf))
+        for (let a of this.index.apply(input, conf)) {
+            if (typeof a != 'string' && typeof a != 'number')
+                throw 'Cannot use ' + describeValue(a) + ' as object key'
             yield [a]
+        }
     }
 }
 class IdentifierIndex extends GenericIndex {
