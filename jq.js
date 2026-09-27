@@ -233,7 +233,7 @@ function makeUserFuncFromNode(params, node, pathFunc=false) {
         f = (x, conf) => c.paths(x, conf)
     let ret = function*(input, conf, args) {
         let origArgs = conf.userFuncArgs
-        conf.userFuncArgs = Object.create(origArgs)
+        conf.userFuncArgs = Object.assign(Object.create(null), origArgs)
         for (let i = 0; i < params.length; i++) {
             let pn = params[i]
             let pv = args[i]
