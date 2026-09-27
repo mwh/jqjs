@@ -1976,7 +1976,7 @@ class UpdateAssignment extends ParseNode {
             if (!(i in o)) {
                 if (del)
                     return obj
-                return obj
+                o[i] = {}
             }
             o = o[i]
         }
