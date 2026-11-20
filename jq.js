@@ -3144,7 +3144,9 @@ const functions = {
         return yield* sub(input, conf, args[0], args[1], 'g')
     }, {params: [{label: 'regex'}, {label: 'tostring'}]}),
     'gsub/3': Object.assign(function*(input, conf, args) {
-        let flags = args[2].apply(input, conf).next().value || 'g';
+        let flags = args[2].apply(input, conf).next().value || '';
+        if (!flags.includes('g'))
+            flags += 'g';
         yield* sub(input, conf, args[0], args[1], flags);
     }, {params: [{label: 'regex'}, {label: 'tostring'}, {label: 'flags'}]}),
     'test/1': Object.assign(function*(input, conf, args) {
@@ -3154,7 +3156,7 @@ const functions = {
         }
     }, {params: [{label: 'regex'}]}),
     'test/2': Object.assign(function*(input, conf, args) {
-        let flags = args[0].apply(input, conf).next().value || '';
+        let flags = args[1].apply(input, conf).next().value || '';
         for (let regexp of args[0].apply(input, conf)) {
             let re = new RegExp(regexp, makeFlagString(flags));
             yield re.test(input);
@@ -3165,7 +3167,7 @@ const functions = {
             let re = new RegExp(regexp, "u");
             let match = re.exec(input);
             if (match) {
-                yield match.groups;
+                yield captureObject(match);
             }
         }
     }, {params: [{label: 'regex'}]}),
@@ -3176,7 +3178,7 @@ const functions = {
             let re = new RegExp(regexp, flags);
             let match = re.exec(input);
             if (match) {
-                yield match.groups;
+                yield captureObject(match);
             }
         }
     }, {params: [{label: 'regex'}, {label: 'flags'}]}),
@@ -3187,9 +3189,9 @@ const functions = {
         }
         flags += 'd';
         let global = flags.indexOf('g') >= 0;
-        let steps = 0;
         for (let regexp of args[0].apply(input, conf)) {
             let re = new RegExp(regexp, flags);
+            let names = captureGroupNames(re.source);
             let match = re.exec(input);
             while (match) {
                 let result = {
@@ -3199,43 +3201,43 @@ const functions = {
                     captures: []
                 };
                 for (let i = 1; i < match.length; i++) {
-                    if (!match.indices[i])
-                        continue;
-                    let name = null;
-                    if (match.indices.groups) {
-                        for (let [k,v] of Object.entries(match.indices.groups)) {
-                            if (match.indices[i][0] == v[0] && match.indices[i][1] == v[1]) {
-                                name = k;
-                                break;
-                            }
-                        }
+                    let name = names[i - 1] ?? null;
+                    if (match.indices[i]) {
+                        result.captures.push({
+                            offset: match.indices[i][0],
+                            length: match[i].length,
+                            string: match[i],
+                            name: name,
+                        });
+                    } else {
+                        // Group that did not take part in the match
+                        result.captures.push({
+                            offset: -1,
+                            length: 0,
+                            string: null,
+                            name: name,
+                        });
                     }
-                    result.captures.push({
-                        offset: match.indices[i][0],
-                        length: match[i].length,
-                        string: match[i],
-                        name: name,
-                    });
                 }
                 yield result;
-                match = re.exec(input);
-                if (steps++ > 1000 || !global)
+                if (!global)
                     break;
+                skipEmptyMatch(re, input, match);
+                match = re.exec(input);
             }
         }
     }, {params: [{label: 'regex'}]}),
     'scan/2': function*(input, conf, args) {
         for (let re of args[0].apply(input, conf)) {
             for (let flags of args[1].apply(input, conf)) {
-                if (flags.includes('g')) flags = flags.gsub('g', '');
-                flags = makeFlagString(flags)
+                flags = makeFlagString((flags ?? '').replace(/g/g, ''))
                 let regexp = new RegExp(re, flags + 'g');
                 let match;
                 while (null !== (match = regexp.exec(input))) {
-                    console.log(match)
                     if (match.length > 1)
-                        yield match.slice(1);
+                        yield match.slice(1).map(s => s ?? null);
                     else yield match[0];
+                    skipEmptyMatch(regexp, input, match);
                 }
             }
         }
@@ -3611,11 +3613,12 @@ function* sub(input, conf, regexpExpr, replacementExpr, flags='') {
         let groupCount = 0;
         while (match = re.exec(input)) {
             bits.push(input.slice(lastIndex, match.index))
-            bits.push(match.groups);
+            bits.push(captureObject(match));
             groupCount++;
             lastIndex = match.index + match[0].length;
             if (flags.indexOf('g') < 0)
                 break;
+            skipEmptyMatch(re, input, match);
         }
         if (bits.length == 0) {
             return yield input;
@@ -3649,6 +3652,50 @@ function* sub(input, conf, regexpExpr, replacementExpr, flags='') {
                 break;
         }
     }
+}
+
+// After an empty match of a global regex, move lastIndex past the
+// next code point, so the next exec() does not find the same empty
+// match again.
+function skipEmptyMatch(re, input, match) {
+    if (match[0] === '')
+        re.lastIndex += input.codePointAt(re.lastIndex) > 0xffff ? 2 : 1;
+}
+
+// The object of named captures that jq gives for a match: {} when
+// there are no named groups, and null for a group that did not match.
+function captureObject(match) {
+    let result = {};
+    for (let [name, value] of Object.entries(match.groups ?? {}))
+        result[name] = value ?? null;
+    return result;
+}
+
+// The names of the capture groups in a regex source, in group order,
+// with null for unnamed groups.
+function captureGroupNames(source) {
+    let names = [];
+    let inClass = false;
+    for (let i = 0; i < source.length; i++) {
+        let c = source[i];
+        if (c == '\\') {
+            i++;
+        } else if (inClass) {
+            if (c == ']')
+                inClass = false;
+        } else if (c == '[') {
+            inClass = true;
+        } else if (c == '(') {
+            if (source[i + 1] != '?') {
+                names.push(null);
+            } else {
+                let named = /^\?<([^=!>][^>]*)>/.exec(source.slice(i + 1));
+                if (named)
+                    names.push(named[1]);
+            }
+        }
+    }
+    return names;
 }
 
 // Create a JavaScript RegExp flag string as best as possible
